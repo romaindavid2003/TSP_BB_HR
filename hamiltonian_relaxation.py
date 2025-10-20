@@ -1,5 +1,6 @@
 
 class Knapsack:
+    
     def __init__(self, weights: list[int], values: list[int], max_weight: int):
         self.weights = weights
         self.values = values
@@ -46,24 +47,121 @@ def test_knapsack_solve_dynamic_programming():
 test_knapsack_solve_dynamic_programming()
 
 
+type affine = tuple[int, float]
+
+def affine_intesection(affine1: affine, affine2: affine) -> float | None:
+    if affine1[1] == affine2[1]:
+        return None
+    return (affine2[0] - affine1[0])/(affine1[1] - affine2[1])
+
+
+def affine_value(affine: affine, value: float) -> float:
+    return affine[1]*value+affine[0]
+
+
 class KnapsackHamiltonianRelaxation:
 
     def __init__(self, knapsack: Knapsack):
-        self.knapsack = knapsack
+        self.knapsack: Knapsack = knapsack
+        self.best_penalized_value_by_penalty: list[tuple[int, int]] = []  # sorted [(lambda1 (eg 0), V_pen(lambda1)), ..., (lambda_n (eg +inf), V_pen(lambda_n))]
+        self.piece_wise_affine_estimation: list[tuple[tuple[int, int], affine]] = []  # for each interval we store what the best upper bound is
+    
+    def update_piece_wise_estimation(self, index:int, new_affine: affine, from_right: bool = True) -> None:
+
+        self.piece_wise_affine_estimation[index][1] = new_affine
+                
+        # merge if necessary
+        if from_right:
+            step = 1
+        else:
+            step = -1
+        if self.piece_wise_affine_estimation[index+step][1] == new_affine:
+            self.piece_wise_affine_estimation[index][0][1] = self.piece_wise_affine_estimation[index+1][0][1]
+            del self.piece_wise_affine_estimation[index+1]
+    
+    def find_uppper_bound(self, threshold=0.01) -> float:
+        """ threshold defines when a change in lambda (penalty factor) is not big enough to continue searching the min of w """
+
+        best_upper_bound = sum(self.knapsack.values)
+
+        affine1 = self.evaluate_full_knapsack()
+        affine2 = self.evaluate_empty_knapsack()
+        
+        penalty_candidate: float = penalty_candidate+threshold+1
+        new_penalty_candidate: float = affine_intesection(affine1=affine1, affine2=affine2)
+        
+        self.piece_wise_affine_estimation.append(((0, new_penalty_candidate), affine1))
+        self.piece_wise_affine_estimation.append(((new_penalty_candidate, -1), affine2))
+
+        piece_wise_cursor = 0
+
+        lower_bound_w_candidate = affine_value(affine=affine1, value=new_penalty_candidate)  # we suppose this could be the minimum (upper bound)
+
+        while abs(new_penalty_candidate-penalty_candidate) > threshold:
+            penalty_candidate = new_penalty_candidate
+            best_solution_for_penalty = self.solve_sub_problem(penalty_candidate)
+            # now find the new place where w (penalized value fct) seems minimal (our affine approximation)
+            new_affine_lower_bound = self.get_affine_lower_bound(best_solution_for_penalty)
+            w_candidate = affine_value(affine=new_affine_lower_bound)
+
+            if w_candidate == lower_bound_w_candidate:  # found the minimum
+                return w_candidate
+            elif w_candidate < best_upper_bound:
+                best_upper_bound = w_candidate
+
+            # we find the left and right intersection (we know that here our affine is on top of the rest)
+            # left
+            while True:
+                interval, affine = self.piece_wise_affine_estimation[piece_wise_cursor]
+                if interval[0] == 0 or affine_value(affine, interval[0])>=affine_value(new_affine_lower_bound, interval[0]):
+                    left_crossing = affine_intesection(affine1=affine, affine2=new_affine_lower_bound)
+                    left_crossing_value = affine_value(affine, interval[0])
+                    left_piece_wise_cursor = piece_wise_cursor
+
+                    piece_wise_cursor += 1
+
+                    self.piece_wise_affine_estimation.insert(piece_wise_cursor, ((left_crossing, interval[1]), new_affine_lower_bound))
+                    self.update_piece_wise_estimation(index=piece_wise_cursor, new_affine=new_affine_lower_bound)
+                    break
+                self.update_piece_wise_estimation(index=piece_wise_cursor, new_affine=new_affine_lower_bound)
+                piece_wise_cursor -= 1
+            
+            while True:
+                interval, affine = self.piece_wise_affine_estimation[piece_wise_cursor]
+                if interval[1] == -1 or affine_value(affine, interval[1])>=affine_value(new_affine_lower_bound, interval[1]):
+                    right_crossing = affine_intesection(affine1=affine, affine2=new_affine_lower_bound)
+                    right_crossing_value = affine_value(affine, interval[0])
+                    right_piece_wise_cursor = piece_wise_cursor
+
+                    self.piece_wise_affine_estimation.insert(piece_wise_cursor, ((interval[0], right_crossing), new_affine_lower_bound))
+                    self.update_piece_wise_estimation(index=piece_wise_cursor, new_affine=new_affine_lower_bound, from_right=False)
+                    break
+                self.update_piece_wise_estimation(index=piece_wise_cursor, new_affine=new_affine_lower_bound, from_right=False)
+                piece_wise_cursor += 1
+            
+            if left_crossing_value <= right_crossing_value:  # left looks more promising for a min
+                piece_wise_cursor = left_piece_wise_cursor
+                new_penalty_candidate = left_crossing
+            else:
+                piece_wise_cursor = right_piece_wise_cursor
+                new_penalty_candidate = right_crossing
+            lower_bound_w_candidate = affine_value(affine=new_affine_lower_bound, value=new_penalty_candidate)
+        
+        return best_upper_bound
 
     
-    def find_uppper_bound(self) -> int:
-        self.evaluate_full_knapsack()
-        self.evaluate_empty_knapsack()
-    
-    def evaluate_full_knapsack(self):
-        self.evaluate_knapsack([True for i in range(len(self.knapsack))])
+    def evaluate_full_knapsack(self) -> affine:
+        return self.get_affine_lower_bound(self.evaluate_knapsack([i for i in range(len(self.knapsack))]))
         
-    def evaluate_empty_knapsack(self):
-        self.evaluate_knapsack([False for i in range(len(self.knapsack))])
+    def evaluate_empty_knapsack(self) -> affine:
+        return self.self.get_affine_lower_bound([])
     
-    def solve_sub_problem(self, penalty_factor: float) -> list[bool]:
-        return [self.knapsack.values[i]>=penalty_factor*self.knapsack.weights[i] for i in range(len(self.knapsack))]
+    def solve_sub_problem(self, penalty_factor: float) -> list[int]:
+        chosen_items = []
+        for i in range(len(self.knapsack)):
+            if self.knapsack.values[i]>=penalty_factor*self.knapsack.weights[i]:
+                chosen_items.append(i)
+        return chosen_items
     
-    def evaluate_knapsack(self, chosen_items: list[bool]) -> None:
-        return 
+    def get_affine_lower_bound(self, chosen_items: list[int]) -> affine:
+        return sum([self.knapsack.values[i] for i in range(chosen_items)]), sum([self.knapsack.weights[i]-self.knapsack.max_weight for i in range(chosen_items)])

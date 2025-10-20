@@ -8,13 +8,16 @@ class Knapsack:
 
         self.max_weight = max_weight
     
+    def __len__(self) -> int:
+        return len(self.weights)
+    
     def solve_dynamic_programming(self, full_result: bool = False) -> int:
 
         vs = self.values
         ws = self.weights
         mw = self.max_weight+1
         
-        item_nb = len(ws)
+        item_nb = len(self)
         value_by_weight_by_subsack = [[0 for w in range(mw)] for s in range(item_nb)]
 
         value_by_weight_by_subsack[0] = [vs[0]*(ws[0]<=w) for w in range(mw)]
@@ -43,5 +46,24 @@ def test_knapsack_solve_dynamic_programming():
 test_knapsack_solve_dynamic_programming()
 
 
+class KnapsackHamiltonianRelaxation:
 
+    def __init__(self, knapsack: Knapsack):
+        self.knapsack = knapsack
 
+    
+    def find_uppper_bound(self) -> int:
+        self.evaluate_full_knapsack()
+        self.evaluate_empty_knapsack()
+    
+    def evaluate_full_knapsack(self):
+        self.evaluate_knapsack([True for i in range(len(self.knapsack))])
+        
+    def evaluate_empty_knapsack(self):
+        self.evaluate_knapsack([False for i in range(len(self.knapsack))])
+    
+    def solve_sub_problem(self, penalty_factor: float) -> list[bool]:
+        return [self.knapsack.values[i]>=penalty_factor*self.knapsack.weights[i] for i in range(len(self.knapsack))]
+    
+    def evaluate_knapsack(self, chosen_items: list[bool]) -> None:
+        return 

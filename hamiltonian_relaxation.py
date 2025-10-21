@@ -1,4 +1,4 @@
-
+import random
 class Knapsack:
     
     def __init__(self, weights: list[int], values: list[int], max_weight: int):
@@ -11,6 +11,17 @@ class Knapsack:
     
     def __len__(self) -> int:
         return len(self.weights)
+    
+    def __str__(self) -> str:
+      return f"w {self.weights} v {self.values} MW {self.max_weight}"
+    
+    def get_random_knapsack(knapsack_size: int, item_max_weight: int = 100) -> "Knapsack":
+        weights = [random.randint(1, item_max_weight) for i in range(knapsack_size)]
+        values = [random.randint(1, item_max_weight) for i in range(knapsack_size)]
+        max_weight=int(abs(random.random())*item_max_weight*knapsack_size/3)
+
+        return Knapsack(weights=weights, values=values, max_weight=max_weight)
+
     
     def solve_dynamic_programming(self, full_result: bool = False) -> int:
 
@@ -82,7 +93,7 @@ class KnapsackHamiltonianRelaxation:
             self.piece_wise_affine_estimation[index] = (tuple(sorted((self.piece_wise_affine_estimation[index][0][1-side], self.piece_wise_affine_estimation[index+step][0][side]))), new_affine)
             del self.piece_wise_affine_estimation[index+step]
     
-    def find_uppper_bound(self, threshold=0.001) -> float:
+    def find_uppper_bound(self, threshold=0.001, floating_accuracy_threshold=0.001) -> float:
         """ threshold defines when a change in lambda (penalty factor) is not big enough to continue searching the min of w """
 
         best_upper_bound = sum(self.knapsack.values)
@@ -106,10 +117,13 @@ class KnapsackHamiltonianRelaxation:
             new_affine_lower_bound = self.get_affine_lower_bound(best_solution_for_penalty)
             w_candidate = affine_value(affine=new_affine_lower_bound, value=penalty_candidate)
 
-            if w_candidate == lower_bound_w_candidate:  # found the minimum
+            if abs(w_candidate - lower_bound_w_candidate) < floating_accuracy_threshold:  # found the minimum
                 print("real minimum of dual reached")
                 return w_candidate
-            elif w_candidate < best_upper_bound:
+            
+            assert w_candidate > lower_bound_w_candidate, f"The impossible happened: {w_candidate}, {lower_bound_w_candidate}"
+            
+            if w_candidate < best_upper_bound:
                 best_upper_bound = w_candidate
 
             # we find the left and right intersection (we know that here our affine is on top of the rest)
@@ -136,7 +150,7 @@ class KnapsackHamiltonianRelaxation:
                 if interval[1] == -1 or affine_value(affine, interval[1])>=affine_value(new_affine_lower_bound, interval[1]):
                     right_crossing = affine_intesection(affine1=affine, affine2=new_affine_lower_bound)
                     right_crossing_value = affine_value(affine, right_crossing)
-                    right_piece_wise_cursor = piece_wise_cursor
+                    right_piece_wise_cursor = piece_wise_cursor-1
 
                     right_affine_interval = self.piece_wise_affine_estimation[piece_wise_cursor]
                     self.piece_wise_affine_estimation[piece_wise_cursor] = ((right_crossing, right_affine_interval[0][1]), right_affine_interval[1])
@@ -172,11 +186,36 @@ class KnapsackHamiltonianRelaxation:
         return chosen_items
     
     def get_affine_lower_bound(self, chosen_items: list[int]) -> affine:
-        return sum([self.knapsack.values[i] for i in range(len(chosen_items))]), -sum([self.knapsack.weights[i] for i in range(len(chosen_items))])+self.knapsack.max_weight
+        return sum([self.knapsack.values[i] for i in chosen_items]), -sum([self.knapsack.weights[i] for i in chosen_items])+self.knapsack.max_weight
 
 
 
 def test_knapsack_hamiltonian_relaxation():
+
+    #knapsack = Knapsack(weights=[10 ,5,6], values=[5, 7,7], max_weight=0)
+    knapsack = Knapsack(weights=[2 ,1,1], values=[1, 1.2,1.1], max_weight=0)
+    knapsack = Knapsack(weights=[2 ,1,1], values=[1, 3,2], max_weight=0)
+    value = knapsack.solve_dynamic_programming()
+    relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
+    bound = relaxed_knapsack.find_uppper_bound()
+    assert bound >= value, f"{bound} < {value}, {knapsack}"
+    print(f"success, bound :{bound} >= {value}")
+
+    for i in range(5):
+        knapsack = Knapsack.get_random_knapsack(30, 100)
+        value = knapsack.solve_dynamic_programming()
+        print(knapsack, value)
+        relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
+        bound = relaxed_knapsack.find_uppper_bound()
+        assert bound >= value, f"{bound} < {value}, {knapsack}"
+        print(f"success, bound :{bound} >= {value}, for bag {knapsack}")
+
+    knapsack = Knapsack(weights=[9, 2], values=[5, 2], max_weight=5)
+    value = knapsack.solve_dynamic_programming()
+    relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
+    bound = relaxed_knapsack.find_uppper_bound()
+    assert bound >= value, f"{bound} < {value}, {knapsack}"
+    print(f"success, bound :{bound} >= {value}")
 
     knapsack = Knapsack(weights=[10, 6, 6], values=[11, 6, 6], max_weight=12)
     relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
@@ -184,12 +223,6 @@ def test_knapsack_hamiltonian_relaxation():
     assert bound >= 12
     print("success, bound :", bound)
 
-    for i in range(5):
-        knapsack = Knapsack.get_random_knapsack()
-        relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
-        bound = relaxed_knapsack.find_uppper_bound()
-        assert bound >= 12
-        print("success, bound :", bound)
 
 
 test_knapsack_hamiltonian_relaxation()

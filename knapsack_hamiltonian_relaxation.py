@@ -93,8 +93,9 @@ class KnapsackHamiltonianRelaxation:
             self.piece_wise_affine_estimation[index] = (tuple(sorted((self.piece_wise_affine_estimation[index][0][1-side], self.piece_wise_affine_estimation[index+step][0][side]))), new_affine)
             del self.piece_wise_affine_estimation[index+step]
     
-    def find_uppper_bound(self, threshold=0.001, floating_accuracy_threshold=0.001) -> float:
+    def find_uppper_bound(self, threshold=0.001, floating_accuracy_threshold=0.001) -> tuple[bool, float]:
         """ threshold defines when a change in lambda (penalty factor) is not big enough to continue searching the min of w """
+        return
 
         best_upper_bound = sum(self.knapsack.values)
 

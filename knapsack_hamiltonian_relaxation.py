@@ -82,7 +82,7 @@ class KnapsackHamiltonianRelaxation:
     
     def update_best_solution_value(self, new_value: float) -> None:
         if self.best_feasible_found_value is None or new_value > self.best_feasible_found_value:
-            self.best_solution_value = new_value
+            self.best_feasible_found_value = new_value
     
     def update_piece_wise_estimation(self, index:int, new_affine: affine, from_right: bool = True) -> None:
 
@@ -205,36 +205,26 @@ class KnapsackHamiltonianRelaxation:
 
 def test_knapsack_hamiltonian_relaxation():
 
-    #knapsack = Knapsack(weights=[10 ,5,6], values=[5, 7,7], max_weight=0)
-    knapsack = Knapsack(weights=[2 ,1,1], values=[1, 1.2,1.1], max_weight=0)
-    knapsack = Knapsack(weights=[2 ,1,1], values=[1, 3,2], max_weight=0)
-    value = knapsack.solve_dynamic_programming()
-    relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
-    bound = relaxed_knapsack.find_uppper_bound()
-    assert bound >= value, f"{bound} < {value}, {knapsack}"
-    print(f"success, bound :{bound} >= {value}")
+    def test_knapsack_hr(knapsack: Knapsack):
 
-    for i in range(5):
-        knapsack = Knapsack.get_random_knapsack(30, 100)
         value = knapsack.solve_dynamic_programming()
-        print(knapsack, value)
         relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
-        bound = relaxed_knapsack.find_uppper_bound()
-        assert bound >= value, f"{bound} < {value}, {knapsack}"
-        print(f"success, bound :{bound} >= {value}, for bag {knapsack}")
+        bound, found_feasible, feasible_value = relaxed_knapsack.find_uppper_bound()
+        if found_feasible:
+            assert bound >= value >= feasible_value, f"{bound} < {value} or {feasible_value} > {value}, {knapsack}"
+            print(f"success, bound :{bound} >= {value} >= {feasible_value}")
+        else:
+            assert bound >= value, f"{bound} < {value}, {knapsack}"
+            print(f"success, bound :{bound} >= {value}")
 
-    knapsack = Knapsack(weights=[9, 2], values=[5, 2], max_weight=5)
-    value = knapsack.solve_dynamic_programming()
-    relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
-    bound = relaxed_knapsack.find_uppper_bound()
-    assert bound >= value, f"{bound} < {value}, {knapsack}"
-    print(f"success, bound :{bound} >= {value}")
+    test_knapsack_hr(Knapsack(weights=[2 ,1,1], values=[1, 3,2], max_weight=0))
+    test_knapsack_hr(Knapsack(weights=[10, 6, 6], values=[11, 6, 6], max_weight=12))
+    test_knapsack_hr(Knapsack(weights=[9, 2], values=[5, 2], max_weight=5))
 
-    knapsack = Knapsack(weights=[10, 6, 6], values=[11, 6, 6], max_weight=12)
-    relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
-    bound = relaxed_knapsack.find_uppper_bound()
-    assert bound >= 12
-    print("success, bound :", bound)
+    for _ in range(5):
+        test_knapsack_hr(Knapsack.get_random_knapsack(30, 100))
+
+    print("all tests success")
 
 
 

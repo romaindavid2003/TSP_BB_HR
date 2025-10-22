@@ -49,6 +49,8 @@ class BBKnapsack(BranchAndBound):
         wmax = problem_sub_instance.max_weight
         yield ValuedKnapsack(weights=rest_w, values=rest_v, max_weight=wmax, added_value=problem_sub_instance.added_value, sorted_by_value_weight_ratio=problem_sub_instance.sorted_by_value_weight_ratio)
         yield ValuedKnapsack(weights=rest_w, values=rest_v, max_weight=wmax-w1, added_value=problem_sub_instance.added_value+v1, sorted_by_value_weight_ratio=problem_sub_instance.sorted_by_value_weight_ratio)
+
+
 def test_knapsack_branch_and_bound():
     def test_knapsack_bb(knapsack: Knapsack):
         knapsack_value = knapsack.solve_dynamic_programming()

@@ -1,8 +1,19 @@
 from abc import ABC, abstractmethod
 
+
+class ProblemInstance(ABC):
+    @abstractmethod
+    def compute_heuristic(self) -> float:
+        pass
+
+    @abstractmethod
+    def evaluate(self) -> float:
+        pass
+
+
 class BranchAndBound(ABC):
-    def __init__(self, problem_instance):
-        self.problem_instance = problem_instance
+    def __init__(self, problem_instance: ProblemInstance):
+        self.problem_instance: ProblemInstance = problem_instance
         self.best_solution_value = None  # gets updated in compute_heuristic
         self.compute_heuristic(problem_instance)
 
@@ -27,7 +38,7 @@ class BranchAndBound(ABC):
         print(f"visited nodes: {self.visited_nodes}")
         return value
 
-    def explore_tree(self, problem_sub_instance) -> float:
+    def explore_tree(self, problem_sub_instance: ProblemInstance) -> float:
 
         self.visited_nodes += 1
         if self.visited_nodes % self.compute_heuristic_frequency == 0:
@@ -45,11 +56,11 @@ class BranchAndBound(ABC):
         return self.best_solution_value  # the children will update this
 
     @abstractmethod
-    def separate(self, problem_sub_instance):
+    def separate(self, problem_sub_instance: ProblemInstance):
         """can be implemented as an iterable to save space (yield)"""
         pass
 
-    def evaluate(self, problem_sub_instance) -> tuple[float, bool]:
+    def evaluate(self, problem_sub_instance: ProblemInstance) -> tuple[float, bool]:
         """
         uses the evaluate method of the problem_sub_instance class
         this method should return:
@@ -68,7 +79,7 @@ class BranchAndBound(ABC):
         return bound, False
         
     
-    def compute_heuristic(self, problem_sub_instance) -> float:
+    def compute_heuristic(self, problem_sub_instance: ProblemInstance) -> float:
         self.update_best_solution_value(problem_sub_instance.compute_heuristic())
         
     

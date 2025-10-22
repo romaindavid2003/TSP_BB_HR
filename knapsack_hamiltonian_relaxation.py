@@ -77,6 +77,12 @@ class KnapsackHamiltonianRelaxation:
         self.knapsack: Knapsack = knapsack
         self.best_penalized_value_by_penalty: list[tuple[int, int]] = []  # sorted [(lambda1 (eg 0), V_pen(lambda1)), ..., (lambda_n (eg +inf), V_pen(lambda_n))]
         self.piece_wise_affine_estimation: list[tuple[tuple[int, int], affine]] = []  # for each interval we store what the best upper bound is
+
+        self.best_feasible_found_value = None
+    
+    def update_best_solution_value(self, new_value: float) -> None:
+        if self.best_feasible_found_value is None or new_value > self.best_feasible_found_value:
+            self.best_solution_value = new_value
     
     def update_piece_wise_estimation(self, index:int, new_affine: affine, from_right: bool = True) -> None:
 
@@ -93,9 +99,8 @@ class KnapsackHamiltonianRelaxation:
             self.piece_wise_affine_estimation[index] = (tuple(sorted((self.piece_wise_affine_estimation[index][0][1-side], self.piece_wise_affine_estimation[index+step][0][side]))), new_affine)
             del self.piece_wise_affine_estimation[index+step]
     
-    def find_uppper_bound(self, threshold=0.001, floating_accuracy_threshold=0.001) -> tuple[bool, float]:
+    def find_uppper_bound(self, threshold=0.001, floating_accuracy_threshold=0.001) -> tuple[float, bool, float|None]:
         """ threshold defines when a change in lambda (penalty factor) is not big enough to continue searching the min of w """
-        return
 
         best_upper_bound = sum(self.knapsack.values)
 
@@ -110,7 +115,8 @@ class KnapsackHamiltonianRelaxation:
 
         piece_wise_cursor = 0
 
-        lower_bound_w_candidate = affine_value(affine=affine1, value=new_penalty_candidate)  # we suppose this could be the minimum (upper bound)
+        lower_bound_w_candidate = affine_value(affine=affine1, value=new_penalty_candidate)  # we suppose this could be the minimum of the dual (best upper bound)
+        
         while abs(new_penalty_candidate-penalty_candidate) > threshold:
             penalty_candidate = new_penalty_candidate
             best_solution_for_penalty = self.solve_sub_problem(penalty_candidate)
@@ -118,10 +124,16 @@ class KnapsackHamiltonianRelaxation:
             new_affine_lower_bound = self.get_affine_lower_bound(best_solution_for_penalty)
             w_candidate = affine_value(affine=new_affine_lower_bound, value=penalty_candidate)
 
+            if new_affine_lower_bound[1] == 0:
+                return w_candidate, True, w_candidate  # the bound is the best feasible 
+
+            if new_affine_lower_bound[1] > 0:
+                self.update_best_solution_value(new_affine_lower_bound[0])
+
             if abs(w_candidate - lower_bound_w_candidate) < floating_accuracy_threshold:  # found the minimum
                 print("real minimum of dual reached")
-                return w_candidate
-            
+                return w_candidate, self.best_feasible_found_value is not None, self.best_feasible_found_value
+
             assert w_candidate > lower_bound_w_candidate, f"The impossible happened: {w_candidate}, {lower_bound_w_candidate}"
             
             if w_candidate < best_upper_bound:
@@ -170,7 +182,7 @@ class KnapsackHamiltonianRelaxation:
                 new_penalty_candidate = right_crossing
             lower_bound_w_candidate = affine_value(affine=new_affine_lower_bound, value=new_penalty_candidate)
         
-        return best_upper_bound
+        return best_upper_bound, self.best_feasible_found_value is not None, self.best_feasible_found_value
 
     
     def evaluate_full_knapsack(self) -> affine:

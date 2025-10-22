@@ -6,7 +6,7 @@ class BranchAndBound(ABC):
         self.best_solution_value = None  # gets updated in compute_heuristic
         self.compute_heuristic(problem_instance)
 
-        self.explore_since_best_feasible_last_update: int = 0
+        self.visited_nodes: int = 0
         self.compute_heuristic_frequency: int = 100
         
     @abstractmethod
@@ -23,12 +23,14 @@ class BranchAndBound(ABC):
         return value1 >= value2
     
     def find_best_value(self) -> float:
-        return self.explore_tree(self.problem_instance)
+        value = self.explore_tree(self.problem_instance)
+        print(f"visited nodes: {self.visited_nodes}")
+        return value
 
     def explore_tree(self, problem_sub_instance) -> float:
-        
-        self.explore_since_best_feasible_last_update += 1
-        if self.explore_since_best_feasible_last_update > self.compute_heuristic_frequency:
+
+        self.visited_nodes += 1
+        if self.visited_nodes % self.compute_heuristic_frequency == 0:
             self.compute_heuristic(problem_sub_instance)
 
         sub_instance_bound, found_best_solution = self.evaluate(problem_sub_instance=problem_sub_instance)
@@ -38,7 +40,7 @@ class BranchAndBound(ABC):
             return self.best_solution_value  # we wont find better than that
 
         for new_problem_sub_instance in self.separate(problem_sub_instance):
-            self.explore_tree(self, new_problem_sub_instance)
+            self.explore_tree(new_problem_sub_instance)
 
         return self.best_solution_value  # the children will update this
 

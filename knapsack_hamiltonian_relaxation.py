@@ -1,7 +1,7 @@
 import random
 class Knapsack:
     
-    def __init__(self, weights: list[int], values: list[int], max_weight: int):
+    def __init__(self, weights: list[int], values: list[float], max_weight: int):
         self.weights = weights
         self.values = values
 
@@ -23,7 +23,7 @@ class Knapsack:
         return Knapsack(weights=weights, values=values, max_weight=max_weight)
 
     
-    def solve_dynamic_programming(self, full_result: bool = False) -> int:
+    def solve_dynamic_programming(self, full_result: bool = False) -> float:
 
         vs = self.values
         ws = self.weights

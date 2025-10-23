@@ -1,5 +1,5 @@
 from functools import lru_cache
-
+from pydantic import BaseModel
 
 
 class Tree(BaseModel):
@@ -72,32 +72,39 @@ class Graph:
         self.vertex_nb: int = vertex_nb
         self.weights: list[list[float]] = weights  # weight matrix
     
+    def get_edges(self) -> list[tuple[tuple[int, int], float]]:
+        edges = []
+        for i in range(len(self)):
+            for j in range(i+1, len(self)):
+                edges.append(((i, j), self.weights[i][j]))
+        return edges
+    
     def __len__(self) -> int:
         return len(self.weights)
     
     def solve_dynamic_programming(self) -> float:
 
-        vertices_no0 = set(range(len(1, self)))
+        vertices_no0 = frozenset(range(1, len(self)))
 
         @lru_cache(maxsize=None)  # memoization here
-        def minimal_chain(T:set[int], target_vertex: int) -> float:
+        def minimal_chain(T:frozenset[int], target_vertex: int) -> float:
             """
             returns minimal length of a path leading from vertex 0 to vertex target_vertex going once through every vertex of T
             """
             if len(T) == 0:  # we always start from 0 
                 return self.weights[0][target_vertex]
             else:
-                return min(minimal_chain(T-set(k), k)+self.weights[k][target_vertex] for k in T)
+                return min(minimal_chain(frozenset(T-set([k])), k)+self.weights[k][target_vertex] for k in T)
 
-        return min(minimal_chain(vertices_no0-set(k))+self.weights[0][k] for k in vertices_no0)
+        return min(minimal_chain(frozenset(vertices_no0-set([k])), k)+self.weights[0][k] for k in vertices_no0)
     
     def compute_heuristic(self) -> float:
         best_spanning_tree = self.compute_kruskal()
         # now find the real length of this hamiltonian cycle by skipping the doubled edges
-        return get_tree_hc_length(best_spanning_tree)
+        return get_tree_hc_length(best_spanning_tree, self.weights)
     
     def compute_kruskal(self) -> Tree:
-        edges = [item for item in self.weights.items()]
+        edges = self.get_edges()
         edges.sort(key=lambda item: item[1])  # sort by weight
         component_by_vertex = UnionFind(len(self))
         
@@ -131,7 +138,7 @@ class Graph:
         return tree
         
     def compute_kruskal_weight(self) -> float:
-        edges = [item for item in self.weights.items()]
+        edges = self.get_edges()
         edges.sort(key=lambda item: item[1])  # sort by weight
         component_by_vertex = UnionFind(len(self))
         
@@ -150,3 +157,16 @@ class Graph:
                 neighbors_in_tree[vertex2].append(vertex1)
 
         return total_weight
+
+
+def test_basic_graph_functions():
+    def test_graph(graph: Graph):
+        feasible_value = graph.compute_heuristic()
+        value = graph.solve_dynamic_programming()
+        assert feasible_value >= value, f"{feasible_value} < {value}"
+
+    test_graph(Graph(vertex_nb=3, weights=[[1, 1, 1], [1, 1, 1], [1, 1, 1]]))
+    print("All tests successful")
+
+test_basic_graph_functions()
+    

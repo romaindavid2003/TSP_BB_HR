@@ -1,6 +1,6 @@
 from typing import Generator
 from branch_and_bound import BranchAndBound
-from knapsack_lagrangian_relaxation import Knapsack, KnapsackHamiltonianRelaxation
+from knapsack_lagrangian_relaxation import Knapsack, KnapsackLagrangianRelaxation
 
 class ValuedKnapsack(Knapsack):
     def __init__(self, weights: list[int], values: list[int], max_weight: int, added_value:int = 0, sorted_by_value_weight_ratio=False):
@@ -11,12 +11,12 @@ class ValuedKnapsack(Knapsack):
     def from_knapsack(knapsack: Knapsack) -> "ValuedKnapsack":
       return ValuedKnapsack(knapsack.weights, knapsack.values, knapsack.max_weight)
     
-    def evaluate(self) -> tuple[float, bool, float|None]:
+    def evaluate(self) -> tuple[bool, float, bool, float|None]:
         if len(self) == 0:
           return 0, True, 0
-        hr = KnapsackHamiltonianRelaxation(self)
+        hr = KnapsackLagrangianRelaxation(self)
         evaluation_result = hr.find_uppper_bound()
-        return (self.added_value+evaluation_result[0], evaluation_result[1], self.added_value+(evaluation_result[2] or 0))
+        return (True, self.added_value+evaluation_result[0], evaluation_result[1], self.added_value+(evaluation_result[2] or 0))
 
     def compute_heuristic(self) -> float:
         if not self.sorted_by_value_weight_ratio:

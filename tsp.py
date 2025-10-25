@@ -93,9 +93,6 @@ class Graph:
         else:
             self.banned_edges = banned_edges
 
-#        self.is_plottable: bool = is_plottable
-#        self.points: list[tuple[int, int]] | None = points
-
     def copy(self, graph: "Graph") -> "Graph":
         vertex_nb = graph.vertex_nb
         weights = graph.weights
@@ -108,7 +105,7 @@ class Graph:
         points = graph_amplitude*np.random.random((size, 2))
         differences = points[:, None, :]-points[None:, :, :]
         distances = np.linalg.norm(differences, axis=-1)
-        return Graph(size, distances)#, True, list(points))
+        return Graph(size, distances)
 
     def get_edges(self) -> list[tuple[int, int, float]]:
         allowed_edges_mat = self.banned_edges==0
@@ -164,20 +161,46 @@ class Graph:
                 return min(minimal_chain(frozenset(T-set([k])), k)+self.weights[k][target_vertex] for k in T)
 
         return min(minimal_chain(frozenset(vertices_no0-set([k])), k)+self.weights[0][k] for k in vertices_no0)
-    
+        
     def compute_heuristic(self) -> float:
-        best_spanning_tree = self.compute_kruskal()
-        # now find the real length of this hamiltonian cycle by skipping the doubled edges
+        """ returns 2 guarantee heuristic """
+        best_spanning_tree = self.compute_kruskal_enforced_edges()
+        assert isinstance(best_spanning_tree, Tree)
+        # now find the real length of this lagrangian cycle by skipping the doubled edges
         return get_tree_hc_length(best_spanning_tree, self.weights)
+
+    def compute_heuristic_for_constrained_graph(self) -> tuple[bool, float, bool]:
+        """ returns if a feasible solution exists, if so the heuristic value, and if it is the best value """
+        best_spanning_tree = self.compute_kruskal_enforced_edges()
+        if isinstance(best_spanning_tree, bool): # a cycle is enforced
+            if best_spanning_tree:
+                return True, self.weights*self.banned_edges*self.enforced_edges, True
+            return False, 0, False
+
+        # now find the real length of this lagrangian cycle by skipping the doubled edges
+        return True, get_tree_hc_length(best_spanning_tree, self.weights), False
     
-    def compute_kruskal(self) -> Tree:
-        edges = self.get_edges()
-        edges.sort(key=lambda item: item[2])  # sort by weight
+    def compute_kruskal_enforced_edges(self) -> Tree | bool:
+        """ if a cycle is enforced, returns whether its a full lagrangian cycle;
+         otherwise return the spaning tree """
+        enforced_edges, edges = self.get_enforced_edges_and_edges()
         component_by_vertex = UnionFind(len(self))
         
         kept_edges = []
-
         neighbors_in_tree: dict[int, list[int]] = {i:[] for i in range(len(self))}
+
+        for item in enforced_edges:
+            vertex1, vertex2, w = item
+            if component_by_vertex.connected(vertex1, vertex2):  # there exists a subcycle
+                return False
+            else:
+                component_by_vertex.union(vertex1, vertex2)
+                kept_edges.append((vertex1, vertex2))
+
+                neighbors_in_tree[vertex1].append(vertex2)
+                neighbors_in_tree[vertex2].append(vertex1)
+        
+        edges.sort(key=lambda item: item[2])  # sort by weight
 
         for item in edges:
             vertex1, vertex2 = item[:2]
@@ -203,37 +226,31 @@ class Graph:
         tree = construct_tree_from_neighbors(1)
 
         return tree
-        
-    def compute_kruskal_weight_enforced_edges(self) -> tuple[bool, float]:
-        """ returns if a feasible solution (a hamiltonian cycle) exists in the graph, and if so, the weights of the best spanning tree """
-        enforced_edges, edges = self.get_enforced_edges_and_edges()
-        component_by_vertex = UnionFind(len(self))
-        
-        total_weight = 0
-        
-        for item in enforced_edges:
-            vertex1, vertex2, w = item
-            if component_by_vertex.connected(vertex1, vertex2):  # there exists a subcycle
-                return False, 0
-            else:
-                component_by_vertex.union(vertex1, vertex2)
-                total_weight += w
-        edges.sort(key=lambda item: item[2])  # sort by weight
 
-        for item in edges:
-            vertex1, vertex2, w = item
-            if not component_by_vertex.connected(vertex1, vertex2):
-                component_by_vertex.union(vertex1, vertex2)
-                total_weight += w
+    def evaluate(self) -> tuple[bool, float, bool, float|None]:
+        """
+        exists_feasible, bound, found_feasible, feasible_value
+        """
+        # first compute a minimum spanning tree with enforced edges
+        # this may update the bestfeasible value
+        # but mainly check if we enforce a small cycle in the tree
+        # if this is the case, we can directly stop this
+        feasible_solution_exists, heuristic_value, is_best_value = self.compute_heuristic_for_constrained_graph()
 
-        return True, total_weight
-    
-    def plot(self):
-        assert self.is_plottable
-        xs = [pt[0] for pt in self.points]
-        ys = [pt[1] for pt in self.points]
-        plt.scatter(xs, ys)
-        plt.show()
+        if not feasible_solution_exists:
+            return False, 0, False, 0
+        
+        if is_best_value:
+            return True, heuristic_value, True, heuristic_value
+
+        hr = TSPlagrangianRelaxation(self)
+        bound, found_heuristic, heuristic_value2 = hr.find_uppper_bound()
+        
+        if found_heuristic:
+            if heuristic_value2 > heuristic_value:
+                heuristic_value = heuristic_value2
+        return (True, bound, True, heuristic_value)
+
 
 
 def test_basic_graph_functions():

@@ -7,7 +7,8 @@ class ProblemInstance(ABC):
         pass
 
     @abstractmethod
-    def evaluate(self) -> float:
+    def evaluate(self) -> tuple[bool, float, bool, float|None]:
+        """exists_feasible, bound, found_feasible, feasible_value"""
         pass
 
 
@@ -44,10 +45,10 @@ class BranchAndBound(ABC):
         if self.visited_nodes % self.compute_heuristic_frequency == 0:
             self.compute_heuristic(problem_sub_instance)
 
-        sub_instance_bound, found_best_solution = self.evaluate(problem_sub_instance=problem_sub_instance)
+        sub_instance_bound, stop_search = self.evaluate(problem_sub_instance=problem_sub_instance)
 
         # no need to explore further, either we have found better already, or we have found the best of this subproblem
-        if found_best_solution or self.is_better(self.best_solution_value, sub_instance_bound):
+        if stop_search or self.is_better(self.best_solution_value, sub_instance_bound):
             return self.best_solution_value  # we wont find better than that
 
         for new_problem_sub_instance in self.separate(problem_sub_instance):
@@ -63,18 +64,21 @@ class BranchAndBound(ABC):
     def evaluate(self, problem_sub_instance: ProblemInstance) -> tuple[float, bool]:
         """
         uses the evaluate method of the problem_sub_instance class
-        this method should return:
+        which should return:
         -the bound value
         -whether it found a feasible solution
         -the best feasible solution value
         
         Note that the best_solution_value attribute gets updated here.
+        
         returns the bound, and whether the search should be stopped (if feasible is the bound)
         """
-        bound, found_feasible, feasible_value = problem_sub_instance.evaluate()
+        exists_feasible, bound, found_feasible, feasible_value = problem_sub_instance.evaluate()
+        if not exists_feasible:  # stop search
+            return -1, True
         if found_feasible:
             self.update_best_solution_value(feasible_value)
-            if feasible_value == bound:
+            if feasible_value == bound:  # stop search
                 return bound, True
         return bound, False
         

@@ -73,7 +73,7 @@ def affine_value(affine: affine, value: float) -> float:
     return affine[1]*value+affine[0]
 
 
-class KnapsackHamiltonianRelaxation:
+class KnapsackLagrangianRelaxation:
 
     def __init__(self, knapsack: Knapsack):
         self.knapsack: Knapsack = knapsack
@@ -205,12 +205,12 @@ class KnapsackHamiltonianRelaxation:
 
 
 
-def test_knapsack_hamiltonian_relaxation():
+def test_knapsack_lagrangian_relaxation():
 
     def test_knapsack_hr(knapsack: Knapsack):
 
         value = knapsack.solve_dynamic_programming()
-        relaxed_knapsack = KnapsackHamiltonianRelaxation(knapsack)
+        relaxed_knapsack = KnapsackLagrangianRelaxation(knapsack)
         bound, found_feasible, feasible_value = relaxed_knapsack.find_uppper_bound()
         if found_feasible:
             assert bound >= value >= feasible_value, f"{bound} < {value} or {feasible_value} > {value}, {knapsack}"
@@ -230,4 +230,4 @@ def test_knapsack_hamiltonian_relaxation():
 
 
 
-test_knapsack_hamiltonian_relaxation()
+test_knapsack_lagrangian_relaxation()

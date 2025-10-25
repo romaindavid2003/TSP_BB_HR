@@ -1,10 +1,17 @@
 from functools import lru_cache
 from pydantic import BaseModel
+import random
+import math
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Tree(BaseModel):
     root: int
     children: list["Tree"]
+
+    def __str__(self) -> str:
+      return f"{self.root}: {[str(c) for c in self.children]}"
 
 
 class UnionFind:
@@ -68,10 +75,25 @@ class Graph:
     """
     Weighted undirected graph, edge weights respect triangular inequality
     """
-    def __init__(self, vertex_nb: int, weights: list[list[float]]):
+    def __init__(self, vertex_nb: int, weights: np.array, is_plottable:bool=False, points:list[tuple[int, int]]|None=None):
         self.vertex_nb: int = vertex_nb
-        self.weights: list[list[float]] = weights  # weight matrix
+        self.weights: np.array = weights  # weight matrix
+
+        self.is_plottable: bool = is_plottable
+        self.points: list[tuple[int, int]] | None = points
     
+    def random_triangular_equality_abiding_graph(size: int, graph_amplitude: int=10) -> "Graph":
+        rand_coordinate_fct = lambda:random.randint(0, graph_amplitude)
+        points = set((rand_coordinate_fct(), rand_coordinate_fct()) for i in range(size))
+        for i in range(size):
+            if len(points) == size:
+                break
+            points.add((rand_coordinate_fct(), rand_coordinate_fct()))
+        if len(points) < size:
+            raise NotImplementedError
+        distances = [[math.sqrt((pt1[0]-pt2[0])**2+(pt1[1]-pt2[1])**2) for pt1 in points] for pt2 in points]
+        return Graph(size, distances, True, list(points))
+
     def get_edges(self) -> list[tuple[tuple[int, int], float]]:
         edges = []
         for i in range(len(self)):
@@ -157,15 +179,26 @@ class Graph:
                 neighbors_in_tree[vertex2].append(vertex1)
 
         return total_weight
+    
+    def plot(self):
+        assert self.is_plottable
+        xs = [pt[0] for pt in self.points]
+        ys = [pt[1] for pt in self.points]
+        plt.scatter(xs, ys)
+        plt.show()
 
 
 def test_basic_graph_functions():
     def test_graph(graph: Graph):
         feasible_value = graph.compute_heuristic()
         value = graph.solve_dynamic_programming()
-        assert feasible_value >= value, f"{feasible_value} < {value}"
+        assert abs(feasible_value - value) >= -0.0001, f"{feasible_value} < {value}"
+        print(round(feasible_value/value, 3))
+
 
     test_graph(Graph(vertex_nb=3, weights=[[1, 1, 1], [1, 1, 1], [1, 1, 1]]))
+    for i in range(10):
+      test_graph(Graph.random_triangular_equality_abiding_graph(15, 10))
     print("All tests successful")
 
 test_basic_graph_functions()

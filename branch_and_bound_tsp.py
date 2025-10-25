@@ -9,3 +9,7 @@ class BBTSP(BranchAndBound):
         """
 
         yield ConstrainedGraph()
+
+
+class ConstrainedGraph(Graph):
+    

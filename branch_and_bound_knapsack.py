@@ -1,6 +1,6 @@
 from typing import Generator
 from branch_and_bound import BranchAndBound
-from 
+from knapsack_lagrangian_relaxation import Knapsack, KnapsackHamiltonianRelaxation
 
 class ValuedKnapsack(Knapsack):
     def __init__(self, weights: list[int], values: list[int], max_weight: int, added_value:int = 0, sorted_by_value_weight_ratio=False):

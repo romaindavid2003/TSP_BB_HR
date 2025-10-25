@@ -95,6 +95,14 @@ class Graph:
 
 #        self.is_plottable: bool = is_plottable
 #        self.points: list[tuple[int, int]] | None = points
+
+    def copy(self, graph: "Graph") -> "Graph":
+        vertex_nb = graph.vertex_nb
+        weights = graph.weights
+        enforced_edges = graph.enforced_edges
+        banned_edges = graph.banned_edges
+
+        return Graph(vertex_nb=vertex_nb, weights=weights, banned_edges=banned_edges, enforced_edges=enforced_edges)
     
     def random_triangular_equality_abiding_graph(size: int, graph_amplitude: int=10) -> "Graph":
         points = graph_amplitude*np.random.random((size, 2))
@@ -115,6 +123,29 @@ class Graph:
         allowed_edges=np.where(allowed_edges_mat)
         return np.stack((enforced_edges[0], enforced_edges[1], self.weights[enforced_edges_mat].flatten()), axis=-1), np.stack((allowed_edges[0], allowed_edges[1], self.weights[allowed_edges_mat].flatten()), axis=-1)
     
+    def get_enforced_neighbors(self, vertex: int) -> list[int]:
+        return np.where(self.enforced_edges[vertex]==1)
+    
+    def enforce(self, vertex1: int, vertex2: int) -> None:
+        self.enforced_edges[vertex1][vertex2] = 1
+        self.enforced_edges[vertex2][vertex1] = 1
+
+        enforced_nb1 = np.sum(self.enforced_edges[vertex1])
+        assert 0 <= enforced_nb1 <= 2
+
+        if enforced_nb1 == 2:
+            self.banned_edges[vertex1][self.enforced_edges[vertex1]==0] = 1
+        
+        enforced_nb2 = np.sum(self.enforced_edges[vertex2])
+        assert 0 <= enforced_nb2 <= 2
+
+        if enforced_nb2 == 2:
+            self.banned_edges[vertex2][self.enforced_edges[vertex2]==0] = 1
+    
+    def ban(self, vertex1: int, vertex2: int) -> None:
+        self.banned_edges[vertex1][vertex2] = 1
+        self.banned_edges[vertex2][vertex1] = 1
+
     def __len__(self) -> int:
         return len(self.weights)
     

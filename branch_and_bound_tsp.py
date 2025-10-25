@@ -57,4 +57,3 @@ class BBTSP(BranchAndBound):
             graph = problem_sub_instance.copy()
             graph.ban(to_split_vertex, neighbor1)
             yield graph
-

@@ -102,7 +102,9 @@ class KnapsackLagrangianRelaxation:
             del self.piece_wise_affine_estimation[index+step]
     
     def find_uppper_bound(self, threshold=0.001, floating_accuracy_threshold=0.001) -> tuple[float, bool, float|None]:
-        """ threshold defines when a change in lambda (penalty factor) is not big enough to continue searching the min of w """
+        """ 
+        returns upper_bound, found_feasible, feasible value
+        threshold defines when a change in lambda (penalty factor) is not big enough to continue searching the min of w """
 
         best_upper_bound = sum(self.knapsack.values)
 

@@ -27,8 +27,10 @@ class TSPlagrangianRelaxation:
             
             penalized_graph = self.compute_penalized_graph()
 
-            best_one_tree = penalized_graph.compute_best_one_tree()
-            lower_bound, subgradient = self.compute_result(best_one_tree)
+            weight_one_tree, node_nb_per_vertex = penalized_graph.compute_best_one_tree()
+
+            subgradient = np.array(node_nb_per_vertex)-2
+            lower_bound = weight_one_tree+2*np.sum(self.penalties)
 
             if np.sum(np.abs(subgradient)) < accuracy_threshold:  # best was a hamiltonian cycle
                 return lower_bound, True, lower_bound  # the bound is actually the feasible value
@@ -53,11 +55,7 @@ class TSPlagrangianRelaxation:
     
     def compute_result(self, tree) -> tuple[float, np.array]:
 
-        node_nb_per_vertex = tree
 
-        node_nb_per_vertex = np.array(node_nb_per_vertex)
-        subgradient = node_nb_per_vertex-2
-        lower_bound = get_tree_hc_length(tree)+2*np.sum(self.penalties)
         return lower_bound, subgradient
     
     def update_penalties(self, subgradient, lower_bound) -> None:

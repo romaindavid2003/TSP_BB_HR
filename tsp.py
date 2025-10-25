@@ -112,14 +112,19 @@ class Graph:
         allowed_edges=np.where(allowed_edges_mat)
         return np.stack((allowed_edges[0], allowed_edges[1], self.weights[allowed_edges_mat].flatten()), axis=-1)
 
-    def get_enforced_edges_and_edges(self) -> tuple[list[tuple[int, int, float]], list[tuple[int, int, float]]]:
+    def get_enforced_edges_and_other_edges(self, computing_one_tree:bool=False) -> tuple[list[tuple[int, int, float]], list[tuple[int, int, float]]]:
+        """ if computing_one_tree, then we don't care about all the edges linked to node 0 """
         enforced_edges_mat = self.enforced_edges==1
+        if computing_one_tree:
+            enforced_edges_mat[0] = np.zeros(len(self))
         enforced_edges=np.where(enforced_edges_mat)
         
-        allowed_edges_mat = self.banned_edges==0
-        allowed_edges=np.where(allowed_edges_mat)
-        return np.stack((enforced_edges[0], enforced_edges[1], self.weights[enforced_edges_mat].flatten()), axis=-1), np.stack((allowed_edges[0], allowed_edges[1], self.weights[allowed_edges_mat].flatten()), axis=-1)
-    
+        other_edges_mat = self.banned_edges==0*self.enforced_edges==0
+        if computing_one_tree:
+            other_edges_mat[0] = np.zeros(len(self))
+        allowed_edges=np.where(other_edges_mat)
+        return np.stack((enforced_edges[0], enforced_edges[1], self.weights[enforced_edges_mat].flatten()), axis=-1), np.stack((allowed_edges[0], allowed_edges[1], self.weights[other_edges_mat].flatten()), axis=-1)
+
     def get_enforced_neighbors(self, vertex: int) -> list[int]:
         return np.where(self.enforced_edges[vertex]==1)
     
@@ -180,14 +185,19 @@ class Graph:
         # now find the real length of this lagrangian cycle by skipping the doubled edges
         return True, get_tree_hc_length(best_spanning_tree, self.weights), False
     
-    def compute_kruskal_enforced_edges(self) -> Tree | bool:
-        """ if a cycle is enforced, returns whether its a full lagrangian cycle;
-         otherwise return the spaning tree """
-        enforced_edges, edges = self.get_enforced_edges_and_edges()
+    def compute_kruskal_enforced_edges(self, computing_one_tree:bool=False) -> Tree | bool | tuple[float, dict[int, list[int]]]:
+        """ 
+        if a cycle is enforced, returns whether its a full lagrangian cycle;
+         otherwise return depending on the context:
+            the spaning tree
+            or the weight of the spanning tree and the neighbors in this tree 
+        """
+        enforced_edges, edges = self.get_enforced_edges_and_other_edges(computing_one_tree)
         component_by_vertex = UnionFind(len(self))
         
         kept_edges = []
         neighbors_in_tree: dict[int, list[int]] = {i:[] for i in range(len(self))}
+        spanning_tree_weight: float = 0
 
         for item in enforced_edges:
             vertex1, vertex2, w = item
@@ -196,6 +206,7 @@ class Graph:
             else:
                 component_by_vertex.union(vertex1, vertex2)
                 kept_edges.append((vertex1, vertex2))
+                spanning_tree_weight += self.weights[vertex1][vertex2]
 
                 neighbors_in_tree[vertex1].append(vertex2)
                 neighbors_in_tree[vertex2].append(vertex1)
@@ -208,9 +219,18 @@ class Graph:
                 component_by_vertex.union(vertex1, vertex2)
                 
                 kept_edges.append((vertex1, vertex2))
+                spanning_tree_weight += self.weights[vertex1][vertex2]
 
                 neighbors_in_tree[vertex1].append(vertex2)
                 neighbors_in_tree[vertex2].append(vertex1)
+
+                if len(kept_edges) == len(self):  # the spanning tree is complete
+                    break
+                elif computing_one_tree and len(kept_edges) == len(self)-1:  # the spanning one tree is complete
+                    break
+        
+        if computing_one_tree:
+            return spanning_tree_weight, neighbors_in_tree
         
         # we know have a list of edges that represent a tree in a graph
         # we need to root it to get a tree
@@ -226,6 +246,28 @@ class Graph:
         tree = construct_tree_from_neighbors(1)
 
         return tree
+
+    def compute_best_one_tree(self) -> tuple[float, list[int]]:
+        """
+        a best one tree is composed of the two smallest edges around some vertex and of the minimum spanning tree on the rest
+        """
+
+        # 
+        enforced_edges_for_first_vertex = np.where(self.enforced_edges[0] == 1)
+        enforced_edges_for_first_vertex_nb = np.sum(enforced_edges_for_first_vertex)
+        enforced_edges_for_first_vertex_weight = np.sum(self.weights[0][enforced_edges_for_first_vertex])
+        other_edges_weights_for_first_vertex = self.weights[np.where(self.enforced_edges[0] == 0, self.banned_edges == 0)]
+        other_edge_needed_nb = 2-enforced_edges_for_first_vertex_nb
+        if other_edge_needed_nb == 0:
+            first_vertex_weight = enforced_edges_for_first_vertex_weight
+        else:
+            first_vertex_weight = np.sum(np.partition(other_edges_weights_for_first_vertex, other_edge_needed_nb)[:other_edge_needed_nb])+enforced_edges_for_first_vertex_weight
+        
+        spanning_tree_weight, neighbors = self.compute_kruskal_enforced_edges(computing_one_tree=True)
+        neighbor_nb = [len(neighbors[i]) for i in range(len(self))]
+        neighbor_nb[0] = 2  # bcs it's a one tree
+        
+        return first_vertex_weight+spanning_tree_weight, neighbor_nb
 
     def evaluate(self) -> tuple[bool, float, bool, float|None]:
         """

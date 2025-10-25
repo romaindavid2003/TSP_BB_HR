@@ -75,31 +75,45 @@ class Graph:
     """
     Weighted undirected graph, edge weights respect triangular inequality
     """
-    def __init__(self, vertex_nb: int, weights: np.array, is_plottable:bool=False, points:list[tuple[int, int]]|None=None):
+    def __init__(self, vertex_nb: int, weights: np.array, enforced_edges:np.array|None=None, banned_edges:np.array|None=None):
         self.vertex_nb: int = vertex_nb
-        self.weights: np.array = weights  # weight matrix
+        self.weights: np.array = weights  # weight matrix (symmetric)
 
-        self.is_plottable: bool = is_plottable
-        self.points: list[tuple[int, int]] | None = points
+        self.enforced_edges: np.array
+        if enforced_edges == None:
+            self.enforced_edges = np.zeros((vertex_nb, vertex_nb))
+        else:
+            self.enforced_edges = enforced_edges
+
+        self.banned_edges: np.array
+        if banned_edges == None:  # we don t allow edges to themselves, and symmetric edges (undirected graph)
+            self.banned_edges = np.ones((vertex_nb, vertex_nb))
+            for k in range(vertex_nb-1):
+                self.banned_edges[k][k+1:] = np.zeros(vertex_nb-k-1)
+        else:
+            self.banned_edges = banned_edges
+
+#        self.is_plottable: bool = is_plottable
+#        self.points: list[tuple[int, int]] | None = points
     
     def random_triangular_equality_abiding_graph(size: int, graph_amplitude: int=10) -> "Graph":
-        rand_coordinate_fct = lambda:random.randint(0, graph_amplitude)
-        points = set((rand_coordinate_fct(), rand_coordinate_fct()) for i in range(size))
-        for i in range(size):
-            if len(points) == size:
-                break
-            points.add((rand_coordinate_fct(), rand_coordinate_fct()))
-        if len(points) < size:
-            raise NotImplementedError
-        distances = [[math.sqrt((pt1[0]-pt2[0])**2+(pt1[1]-pt2[1])**2) for pt1 in points] for pt2 in points]
-        return Graph(size, distances, True, list(points))
+        points = graph_amplitude*np.random.random((size, 2))
+        differences = points[:, None, :]-points[None:, :, :]
+        distances = np.linalg.norm(differences, axis=-1)
+        return Graph(size, distances)#, True, list(points))
 
-    def get_edges(self) -> list[tuple[tuple[int, int], float]]:
-        edges = []
-        for i in range(len(self)):
-            for j in range(i+1, len(self)):
-                edges.append(((i, j), self.weights[i][j]))
-        return edges
+    def get_edges(self) -> list[tuple[int, int, float]]:
+        allowed_edges_mat = self.banned_edges==0
+        allowed_edges=np.where(allowed_edges_mat)
+        return np.stack((allowed_edges[0], allowed_edges[1], self.weights[allowed_edges_mat].flatten()), axis=-1)
+
+    def get_enforced_edges_and_edges(self) -> tuple[list[tuple[int, int, float]], list[tuple[int, int, float]]]:
+        enforced_edges_mat = self.enforced_edges==1
+        enforced_edges=np.where(enforced_edges_mat)
+        
+        allowed_edges_mat = self.banned_edges==0
+        allowed_edges=np.where(allowed_edges_mat)
+        return np.stack((enforced_edges[0], enforced_edges[1], self.weights[enforced_edges_mat].flatten()), axis=-1), np.stack((allowed_edges[0], allowed_edges[1], self.weights[allowed_edges_mat].flatten()), axis=-1)
     
     def __len__(self) -> int:
         return len(self.weights)
@@ -127,7 +141,7 @@ class Graph:
     
     def compute_kruskal(self) -> Tree:
         edges = self.get_edges()
-        edges.sort(key=lambda item: item[1])  # sort by weight
+        edges.sort(key=lambda item: item[2])  # sort by weight
         component_by_vertex = UnionFind(len(self))
         
         kept_edges = []
@@ -135,7 +149,7 @@ class Graph:
         neighbors_in_tree: dict[int, list[int]] = {i:[] for i in range(len(self))}
 
         for item in edges:
-            vertex1, vertex2 = item[0]
+            vertex1, vertex2 = item[:2]
             if not component_by_vertex.connected(vertex1, vertex2):
                 component_by_vertex.union(vertex1, vertex2)
                 
@@ -159,26 +173,29 @@ class Graph:
 
         return tree
         
-    def compute_kruskal_weight(self) -> float:
-        edges = self.get_edges()
-        edges.sort(key=lambda item: item[1])  # sort by weight
+    def compute_kruskal_weight_enforced_edges(self) -> tuple[bool, float]:
+        """ returns if a feasible solution (a hamiltonian cycle) exists in the graph, and if so, the weights of the best spanning tree """
+        enforced_edges, edges = self.get_enforced_edges_and_edges()
         component_by_vertex = UnionFind(len(self))
         
         total_weight = 0
-
-        neighbors_in_tree: dict[int, list[int]] = {i:[] for i in range(len(self))}
+        
+        for item in enforced_edges:
+            vertex1, vertex2, w = item
+            if component_by_vertex.connected(vertex1, vertex2):  # there exists a subcycle
+                return False, 0
+            else:
+                component_by_vertex.union(vertex1, vertex2)
+                total_weight += w
+        edges.sort(key=lambda item: item[2])  # sort by weight
 
         for item in edges:
-            vertex1, vertex2 = item[0]
+            vertex1, vertex2, w = item
             if not component_by_vertex.connected(vertex1, vertex2):
                 component_by_vertex.union(vertex1, vertex2)
-                
-                total_weight += item[1]
+                total_weight += w
 
-                neighbors_in_tree[vertex1].append(vertex2)
-                neighbors_in_tree[vertex2].append(vertex1)
-
-        return total_weight
+        return True, total_weight
     
     def plot(self):
         assert self.is_plottable
@@ -197,7 +214,7 @@ def test_basic_graph_functions():
 
 
     test_graph(Graph(vertex_nb=3, weights=[[1, 1, 1], [1, 1, 1], [1, 1, 1]]))
-    for i in range(10):
+    for _ in range(10):
       test_graph(Graph.random_triangular_equality_abiding_graph(15, 10))
     print("All tests successful")
 

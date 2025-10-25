@@ -1,4 +1,6 @@
 import random
+
+
 class Knapsack:
     
     def __init__(self, weights: list[int], values: list[float], max_weight: int):

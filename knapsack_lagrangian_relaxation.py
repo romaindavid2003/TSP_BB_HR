@@ -138,7 +138,7 @@ class KnapsackLagrangianRelaxation:
                 self.update_best_solution_value(new_affine_lower_bound[0])
 
             if abs(w_candidate - lower_bound_w_candidate) < floating_accuracy_threshold:  # found the minimum
-                print("real minimum of dual reached")
+                # print("real minimum of dual reached")
                 return w_candidate, self.best_feasible_found_value is not None, self.best_feasible_found_value
 
             assert w_candidate > lower_bound_w_candidate, f"The impossible happened: {w_candidate}, {lower_bound_w_candidate}"
@@ -234,5 +234,5 @@ def test_knapsack_lagrangian_relaxation():
     print("all tests success")
 
 
-
-test_knapsack_lagrangian_relaxation()
+if __name__ == "__main__":
+    test_knapsack_lagrangian_relaxation()

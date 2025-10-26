@@ -74,4 +74,5 @@ def test_knapsack_branch_and_bound():
         test_knapsack_bb(Knapsack.get_random_knapsack(30, 100))
     print("all tests success")
 
-test_knapsack_branch_and_bound()
+if __name__ == "__main__":
+    test_knapsack_branch_and_bound()

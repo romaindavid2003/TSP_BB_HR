@@ -82,38 +82,57 @@ class Graph(ProblemInstance):
     """
     Weighted undirected graph, edge weights respect triangular inequality
     """
-    def __init__(self, vertex_nb: int, weights: np.array, enforced_edges: np.array|None=None, banned_edges:np.array|None=None):
+    def __init__(self, vertex_nb: int, weights: np.ndarray, enforced_edges: np.ndarray|None=None, banned_edges:np.ndarray|None=None):
         self.vertex_nb: int = vertex_nb
-        self.weights: np.array = weights  # weight matrix (symmetric)
+        self.weights: np.ndarray = weights.astype(np.float16)  # weight matrix (symmetric)
+        assert self.vertex_nb == len(self.weights)
 
-        self.enforced_edges: np.array
-        if enforced_edges == None:
+        self.enforced_edges: np.ndarray
+        if enforced_edges is None:
             self.enforced_edges = np.zeros((vertex_nb, vertex_nb))
         else:
             self.enforced_edges = enforced_edges
 
-        self.banned_edges: np.array
-        if banned_edges == None:  # we don t allow edges to themselves, and symmetric edges (undirected graph)
+        self.banned_edges: np.ndarray
+        if banned_edges is None:  # we don t allow edges to themselves, and symmetric edges (undirected graph)
             self.banned_edges = np.ones((vertex_nb, vertex_nb))
             for k in range(vertex_nb-1):
                 self.banned_edges[k][k+1:] = np.zeros(vertex_nb-k-1)
         else:
             self.banned_edges = banned_edges
+        
+        self.separation_information: SeparationInfo|None = None
+    
+    def get_separation_information(self) -> SeparationInfo:
+        assert self.separation_information is not None
+        return self.separation_information
+      
+    def set_separation_information(self, separation_information: SeparationInfo) -> None:
+      self.separation_information = separation_information
+    
+    def __str__(self) -> str:
+      return str(self.weights)+"\n"+str(self.banned_edges)+"\n"+str(self.enforced_edges)
 
-    def copy(self, graph: "Graph") -> "Graph":
-        vertex_nb = graph.vertex_nb
-        weights = graph.weights
-        enforced_edges = graph.enforced_edges
-        banned_edges = graph.banned_edges
+    def copy(self) -> "Graph":
+        vertex_nb = self.vertex_nb
+        weights = self.weights
+        enforced_edges = self.enforced_edges
+        banned_edges = self.banned_edges
 
         return Graph(vertex_nb=vertex_nb, weights=weights, banned_edges=banned_edges, enforced_edges=enforced_edges)
     
     @classmethod
     def random_triangular_equality_abiding_graph(cls, size: int, graph_amplitude: int=10) -> "Graph":
         points = graph_amplitude*np.random.random((size, 2))
-        differences = points[:, None, :]-points[None:, :, :]
+        differences = points[:, None, :]-points[None, :, :]
         distances = np.linalg.norm(differences, axis=-1)
         return cls(size, distances)
+    
+    @classmethod
+    def from_points(cls, points: np.ndarray) -> "Graph":
+        differences = points[:, None, :]-points[None, :, :]
+        distances = np.linalg.norm(differences, axis=-1)
+        return cls(len(points), distances)
 
     def get_edges(self) -> list[tuple[int, int, float]]:
         allowed_edges_mat = self.banned_edges==0
@@ -122,19 +141,21 @@ class Graph(ProblemInstance):
 
     def get_enforced_edges_and_other_edges(self, computing_one_tree:bool=False) -> tuple[list[tuple[int, int, float]], list[tuple[int, int, float]]]:
         """ if computing_one_tree, then we don't care about all the edges linked to node 0 """
-        enforced_edges_mat = self.enforced_edges==1
+        enforced_edges_mat = (self.banned_edges==0)*(self.enforced_edges==1)
         if computing_one_tree:
             enforced_edges_mat[0] = np.zeros(len(self))
         enforced_edges=np.where(enforced_edges_mat)
-        
-        other_edges_mat = self.banned_edges==0*self.enforced_edges==0
+
+        other_edges_mat = (self.banned_edges==0)*(self.enforced_edges==0)#.astype(np.uint8)
         if computing_one_tree:
             other_edges_mat[0] = np.zeros(len(self))
-        allowed_edges=np.where(other_edges_mat)
-        return np.stack((enforced_edges[0], enforced_edges[1], self.weights[enforced_edges_mat].flatten()), axis=-1), np.stack((allowed_edges[0], allowed_edges[1], self.weights[other_edges_mat].flatten()), axis=-1)
+        other_edges=np.where(other_edges_mat)
+        if len(enforced_edges[0]) == 0:
+          return [], np.stack((other_edges[0], other_edges[1], self.weights[other_edges_mat].flatten()), axis=-1)
+        return np.stack((enforced_edges[0], enforced_edges[1], self.weights[enforced_edges_mat].flatten()), axis=-1), np.stack((other_edges[0], other_edges[1], self.weights[other_edges_mat].flatten()), axis=-1)
 
     def get_enforced_neighbors(self, vertex: int) -> list[int]:
-        return np.where(self.enforced_edges[vertex]==1)
+        return np.where(self.enforced_edges[vertex]==1)[0]  # np returns a tuple, no idea why
     
     def enforce(self, vertex1: int, vertex2: int) -> None:
         self.enforced_edges[vertex1][vertex2] = 1
@@ -142,15 +163,17 @@ class Graph(ProblemInstance):
 
         enforced_nb1 = np.sum(self.enforced_edges[vertex1])
         assert 0 <= enforced_nb1 <= 2
-
-        if enforced_nb1 == 2:
-            self.banned_edges[vertex1][self.enforced_edges[vertex1]==0] = 1
-        
         enforced_nb2 = np.sum(self.enforced_edges[vertex2])
         assert 0 <= enforced_nb2 <= 2
 
+        if enforced_nb1 == 2:
+            new_banned_neighbors = np.where(self.enforced_edges[vertex1]==0)[0]
+            self.banned_edges[vertex1, new_banned_neighbors] = 1
+            self.banned_edges[new_banned_neighbors, vertex1] = 1
         if enforced_nb2 == 2:
-            self.banned_edges[vertex2][self.enforced_edges[vertex2]==0] = 1
+            new_banned_neighbors = self.enforced_edges[vertex2]==0
+            self.banned_edges[vertex2, new_banned_neighbors] = 1
+            self.banned_edges[new_banned_neighbors, vertex2] = 1
     
     def ban(self, vertex1: int, vertex2: int) -> None:
         self.banned_edges[vertex1][vertex2] = 1
@@ -185,6 +208,7 @@ class Graph(ProblemInstance):
     def compute_heuristic_for_constrained_graph(self) -> tuple[bool, float, bool]:
         """ returns if a feasible solution exists, if so the heuristic value, and if it is the best value """
         best_spanning_tree = self.compute_kruskal_enforced_edges()
+        print(best_spanning_tree, 98)
         if isinstance(best_spanning_tree, bool): # a cycle is enforced
             if best_spanning_tree:
                 return True, self.weights*self.banned_edges*self.enforced_edges, True
@@ -195,10 +219,12 @@ class Graph(ProblemInstance):
     
     def compute_kruskal_enforced_edges(self, computing_one_tree:bool=False) -> Tree | bool | tuple[float, dict[int, list[int]]]:
         """ 
-        if a cycle is enforced, returns whether its a full lagrangian cycle;
+        returns:
+          if a cycle is enforced:
+              whether its a full lagrangian cycle;
          otherwise return depending on the context:
-            the spaning tree
-            or the weight of the spanning tree and the neighbors in this tree 
+              the spaning tree
+              or the weight of the spanning tree and the neighbors in this tree 
         """
         enforced_edges, edges = self.get_enforced_edges_and_other_edges(computing_one_tree)
         component_by_vertex = UnionFind(len(self))
@@ -209,6 +235,7 @@ class Graph(ProblemInstance):
 
         for item in enforced_edges:
             vertex1, vertex2, w = item
+            vertex1, vertex2 = int(vertex1), int(vertex2)
             if component_by_vertex.connected(vertex1, vertex2):  # there exists a subcycle
                 return False
             else:
@@ -218,11 +245,12 @@ class Graph(ProblemInstance):
 
                 neighbors_in_tree[vertex1].append(vertex2)
                 neighbors_in_tree[vertex2].append(vertex1)
-        
-        edges.sort(key=lambda item: item[2])  # sort by weight
+
+        edges = edges[edges[:, 2].argsort()]  # sort by weight
 
         for item in edges:
             vertex1, vertex2 = item[:2]
+            vertex1, vertex2 = int(vertex1), int(vertex2)
             if not component_by_vertex.connected(vertex1, vertex2):
                 component_by_vertex.union(vertex1, vertex2)
                 
@@ -258,28 +286,48 @@ class Graph(ProblemInstance):
     def compute_best_one_tree(self) -> tuple[float, list[int], SeparationInfo|None]:
         """
         a best one tree is composed of the two smallest edges around some vertex and of the minimum spanning tree on the rest
+        here we return:
+        - the best one tree weight
+        - the neighbors of each vertex to update the penalizations (increase penalty for those that have more than 2 neighbors and conversely)
+        - the separation information: a vertex in the 1 tree that had more than 2 neighbors (except if a hamiltonian cycle was found then no sepa)
         """
 
         separation_info = None
 
         # 
-        enforced_edges_for_first_vertex = np.where(self.enforced_edges[0] == 1)
+        enforced_edges_for_first_vertex = np.where(self.enforced_edges[0] == 1)[0]
         enforced_edges_for_first_vertex_nb = np.sum(enforced_edges_for_first_vertex)
         enforced_edges_for_first_vertex_weight = np.sum(self.weights[0][enforced_edges_for_first_vertex])
-        other_edges_weights_for_first_vertex = self.weights[np.where(self.enforced_edges[0] == 0, self.banned_edges == 0)]
+        
         other_edge_needed_nb = 2-enforced_edges_for_first_vertex_nb
+        
+        other_edges_first_vertex = np.logical_and(self.enforced_edges[0] == 0, self.banned_edges[0] == 0)
+        other_edges_weights_for_first_vertex = self.weights[0][other_edges_first_vertex]  # keep only weights of other dges
+
+        lightest_indices = np.argsort(other_edges_weights_for_first_vertex)[:other_edge_needed_nb]
+        vertex_indices = np.where(other_edges_first_vertex)[0][lightest_indices]
+
         if other_edge_needed_nb == 0:
             first_vertex_weight = enforced_edges_for_first_vertex_weight
         else:
-            first_vertex_weight = np.sum(np.partition(other_edges_weights_for_first_vertex, other_edge_needed_nb)[:other_edge_needed_nb])+enforced_edges_for_first_vertex_weight
+            first_vertex_weight = np.sum(other_edges_weights_for_first_vertex[lightest_indices][:other_edge_needed_nb])+enforced_edges_for_first_vertex_weight
         
         spanning_tree_weight, neighbors = self.compute_kruskal_enforced_edges(computing_one_tree=True)
         neighbor_nb = []
+        c = 0
         for i in range(len(self)):
+            # add first vertex as neighbor
+            if i in enforced_edges_for_first_vertex or i in vertex_indices:
+              neighbors[i].append(0)
+              c += 1
             neighbor_nb.append(len(neighbors[i]))
-            if neighbor_nb > 2:
-                separation_info = SeparationInfo(to_split_vertex=i, chosen_neighbors=neighbors)
-        neighbor_nb[0] = 2  # bcs it's a one tree
+
+            if neighbor_nb[-1] > 2:
+                separation_info = SeparationInfo(to_split_vertex=i, chosen_neighbors=neighbors[i])
+
+        assert c == 2
+        # add edges of first vertex
+        neighbor_nb[0] = 2
         
         return first_vertex_weight+spanning_tree_weight, neighbor_nb, separation_info
 
@@ -293,10 +341,13 @@ def test_basic_graph_functions():
         print(round(feasible_value/value, 3))
 
 
-    test_graph(Graph(vertex_nb=3, weights=[[1, 1, 1], [1, 1, 1], [1, 1, 1]]))
+    test_graph(Graph(vertex_nb=3, weights=np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])))
+    test_graph(Graph(vertex_nb=4, weights=np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])))
     for _ in range(10):
       test_graph(Graph.random_triangular_equality_abiding_graph(15, 10))
     print("All tests successful")
 
-test_basic_graph_functions()
+
+if __name__ == "__main__":
+    test_basic_graph_functions()
     

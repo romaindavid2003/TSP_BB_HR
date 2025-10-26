@@ -1,8 +1,9 @@
 from typing import Generator
+import numpy as np
 
 from tsp import Graph
 from branch_and_bound import BranchAndBound, EvaluationResult
-from tsp_lagrange_relaxation import TSPlagrangianRelaxation
+from tsp_lagrange_relaxation import TSPLagrangianRelaxation
 
 
 class BBTSP(BranchAndBound):
@@ -30,11 +31,12 @@ class BBTSP(BranchAndBound):
 
         Relies on the fact that some information has been stored during evaluation
         """
-        to_split_vertex, chosen_neighbors = problem_sub_instance.get_evaluation_information()
+        sepa_info = problem_sub_instance.get_separation_information()
+        print(sepa_info)
+        to_split_vertex, chosen_neighbors = sepa_info.to_split_vertex, sepa_info.chosen_neighbors
         enforced_neighbors = problem_sub_instance.get_enforced_neighbors(to_split_vertex)
-
-        assert 0 <= len(enforced_neighbors) < 2
-        assert enforced_neighbors in chosen_neighbors
+        assert 0 <= len(enforced_neighbors) < 2, len(enforced_neighbors)
+        assert set(enforced_neighbors) <= set(chosen_neighbors), f"{enforced_neighbors} {chosen_neighbors}"
 
         other_neighbors = set(chosen_neighbors)-set(enforced_neighbors)
 
@@ -72,17 +74,44 @@ class BBTSP(BranchAndBound):
         # but mainly check if we enforce a small cycle in the tree
         # if this is the case, we can directly stop this
         feasible_solution_exists, heuristic_value, is_best_value = problem_sub_instance.compute_heuristic_for_constrained_graph()
-
+        print(feasible_solution_exists)
         if not feasible_solution_exists:
             return EvaluationResult(exists_feasible=False, bound=0)
         
         if is_best_value:
             return EvaluationResult(bound=heuristic_value, found_feasible=True, feasible_value=heuristic_value)
 
-        lr = TSPlagrangianRelaxation(graph=problem_sub_instance, upper_bound=self.best_solution_value, initial_penalties=last_best_penalties)
-        bound, found_heuristic, heuristic_value2 = lr.find_uppper_bound()
+        lr = TSPLagrangianRelaxation(graph=problem_sub_instance, upper_bound=self.best_solution_value, initial_penalties=last_best_penalties)
+        bound, found_heuristic, heuristic_value2 = lr.find_lower_bound()
+        print(bound, lr.separation_information, self.best_solution_value)
+        problem_sub_instance.set_separation_information(lr.separation_information)
 
         if found_heuristic:
             if heuristic_value2 > heuristic_value:
                 heuristic_value = heuristic_value2
         return EvaluationResult(bound=bound, found_feasible=True, feasible_value=heuristic_value, next_evaluation_parameters=lr.best_lower_bound_penalties)
+
+
+def test_tsp_branch_and_bound():
+    def test_tsp_bb(graph: Graph):
+        tsp_value = graph.solve_dynamic_programming()
+        b_b = BBTSP(graph)
+        value = b_b.find_best_value()
+        assert value == tsp_value, f"{tsp_value} (real) is not {value} (found)"
+        print("instance size: ", len(graph), "found value: ", value)
+
+    
+    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 2]])))
+    return
+    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 1]])))
+    test_tsp_bb(Graph.from_points(np.array([[1, 0], [0, 1], [0, 0], [1, 1]])))
+    test_tsp_bb(Graph(vertex_nb=3, weights=np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])))
+    test_tsp_bb(Graph(vertex_nb=4, weights=np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])))
+
+    for _ in range(5):
+        test_tsp_bb(Graph.random_triangular_equality_abiding_graph(15, 10))
+
+    print("all tests success")
+
+if __name__ == "__main__":
+    test_tsp_branch_and_bound()

@@ -1,6 +1,9 @@
 import random
 
 
+type affine = tuple[float, float]
+
+
 class Knapsack:
     
     def __init__(self, weights: list[int], values: list[float], max_weight: int):
@@ -17,22 +20,23 @@ class Knapsack:
     def __str__(self) -> str:
       return f"w {self.weights} v {self.values} MW {self.max_weight}"
     
-    def get_random_knapsack(knapsack_size: int, item_max_weight: int = 100) -> "Knapsack":
+    @classmethod
+    def get_random_knapsack(cls, knapsack_size: int, item_max_weight: int = 100) -> "Knapsack":
         weights = [random.randint(1, item_max_weight) for i in range(knapsack_size)]
         values = [random.randint(1, item_max_weight) for i in range(knapsack_size)]
         max_weight=int(abs(random.random())*item_max_weight*knapsack_size/3)
 
-        return Knapsack(weights=weights, values=values, max_weight=max_weight)
+        return cls(weights=weights, values=values, max_weight=max_weight)
 
     
-    def solve_dynamic_programming(self, full_result: bool = False) -> float:
+    def solve_dynamic_programming(self, full_result: bool = False) -> float|list[list[float]]:
 
         vs = self.values
         ws = self.weights
         mw = self.max_weight+1
         
         item_nb = len(self)
-        value_by_weight_by_subsack = [[0 for w in range(mw)] for s in range(item_nb)]
+        value_by_weight_by_subsack: list[list[float]] = [[0 for w in range(mw)] for s in range(item_nb)]
 
         value_by_weight_by_subsack[0] = [vs[0]*(ws[0]<=w) for w in range(mw)]
         for i in range(1, item_nb):
@@ -60,7 +64,6 @@ def test_knapsack_solve_dynamic_programming():
 test_knapsack_solve_dynamic_programming()
 
 
-type affine = tuple[int, float]
 
 def affine_intesection(affine1: affine, affine2: affine) -> float | None:
     if affine1[1] == affine2[1]:

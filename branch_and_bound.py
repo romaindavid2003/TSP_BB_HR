@@ -19,7 +19,7 @@ class EvaluationResult(BaseModel):
 class BranchAndBound(ABC):
     def __init__(self, problem_instance: ProblemInstance):
         self.problem_instance: ProblemInstance = problem_instance
-        self.best_solution_value = None  # gets updated in compute_heuristic
+        self.best_solution_value: float = None  # gets updated in compute_heuristic
         self.compute_heuristic(problem_instance)
 
         self.visited_nodes: int = 0

@@ -1,22 +1,23 @@
 from typing import Generator
-from branch_and_bound import BranchAndBound
+from branch_and_bound import BranchAndBound, EvaluationResult, ProblemInstance
 from knapsack_lagrangian_relaxation import Knapsack, KnapsackLagrangianRelaxation
 
-class ValuedKnapsack(Knapsack):
-    def __init__(self, weights: list[int], values: list[int], max_weight: int, added_value:int = 0, sorted_by_value_weight_ratio=False):
+
+class ValuedKnapsack(Knapsack, ProblemInstance):
+    def __init__(self, weights: list[int], values: list[float], max_weight: int, added_value:float = 0, sorted_by_value_weight_ratio=False):
         super().__init__(weights=weights, values=values, max_weight=max_weight)
-        self.added_value = added_value
+        self.added_value: float = added_value
         self.sorted_by_value_weight_ratio: bool = sorted_by_value_weight_ratio  # we need to do this only one time
     
     def from_knapsack(knapsack: Knapsack) -> "ValuedKnapsack":
       return ValuedKnapsack(knapsack.weights, knapsack.values, knapsack.max_weight)
     
-    def evaluate(self) -> tuple[bool, float, bool, float|None]:
+    def evaluate(self) -> EvaluationResult:
         if len(self) == 0:
-          return 0, True, 0
+          return EvaluationResult(bound=0, found_feasible=True, feasible_value=0)
         lr = KnapsackLagrangianRelaxation(self)
         evaluation_result = lr.find_uppper_bound()
-        return (True, self.added_value+evaluation_result[0], evaluation_result[1], self.added_value+(evaluation_result[2] or 0))
+        return EvaluationResult(bound=self.added_value+evaluation_result[0], found_feasible=evaluation_result[1], feasible_value=self.added_value+(evaluation_result[2] or 0))
 
     def compute_heuristic(self) -> float:
         if not self.sorted_by_value_weight_ratio:
@@ -50,6 +51,9 @@ class BBKnapsack(BranchAndBound):
         wmax = problem_sub_instance.max_weight
         yield ValuedKnapsack(weights=rest_w, values=rest_v, max_weight=wmax, added_value=problem_sub_instance.added_value, sorted_by_value_weight_ratio=problem_sub_instance.sorted_by_value_weight_ratio)
         yield ValuedKnapsack(weights=rest_w, values=rest_v, max_weight=wmax-w1, added_value=problem_sub_instance.added_value+v1, sorted_by_value_weight_ratio=problem_sub_instance.sorted_by_value_weight_ratio)
+
+    def compute_evaluation(self, problem_sub_instance: ValuedKnapsack, params=None) -> EvaluationResult:
+        return problem_sub_instance.evaluate()
 
 
 def test_knapsack_branch_and_bound():

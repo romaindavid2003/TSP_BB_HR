@@ -5,6 +5,13 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 
+from branch_and_bound import ProblemInstance
+
+
+class SeparationInfo(BaseModel):
+    to_split_vertex: int
+    chosen_neighbors: list[int]
+
 
 class Tree(BaseModel):
     root: int
@@ -71,11 +78,11 @@ def get_tree_hc_length(tree: Tree, weights: list[list[float]]) -> float:
     return length+weights[tree.root][last_visited_node]
 
 
-class Graph:
+class Graph(ProblemInstance):
     """
     Weighted undirected graph, edge weights respect triangular inequality
     """
-    def __init__(self, vertex_nb: int, weights: np.array, enforced_edges:np.array|None=None, banned_edges:np.array|None=None):
+    def __init__(self, vertex_nb: int, weights: np.array, enforced_edges: np.array|None=None, banned_edges:np.array|None=None):
         self.vertex_nb: int = vertex_nb
         self.weights: np.array = weights  # weight matrix (symmetric)
 
@@ -101,11 +108,12 @@ class Graph:
 
         return Graph(vertex_nb=vertex_nb, weights=weights, banned_edges=banned_edges, enforced_edges=enforced_edges)
     
-    def random_triangular_equality_abiding_graph(size: int, graph_amplitude: int=10) -> "Graph":
+    @classmethod
+    def random_triangular_equality_abiding_graph(cls, size: int, graph_amplitude: int=10) -> "Graph":
         points = graph_amplitude*np.random.random((size, 2))
         differences = points[:, None, :]-points[None:, :, :]
         distances = np.linalg.norm(differences, axis=-1)
-        return Graph(size, distances)
+        return cls(size, distances)
 
     def get_edges(self) -> list[tuple[int, int, float]]:
         allowed_edges_mat = self.banned_edges==0
@@ -247,10 +255,12 @@ class Graph:
 
         return tree
 
-    def compute_best_one_tree(self) -> tuple[float, list[int]]:
+    def compute_best_one_tree(self) -> tuple[float, list[int], SeparationInfo|None]:
         """
         a best one tree is composed of the two smallest edges around some vertex and of the minimum spanning tree on the rest
         """
+
+        separation_info = None
 
         # 
         enforced_edges_for_first_vertex = np.where(self.enforced_edges[0] == 1)
@@ -264,10 +274,14 @@ class Graph:
             first_vertex_weight = np.sum(np.partition(other_edges_weights_for_first_vertex, other_edge_needed_nb)[:other_edge_needed_nb])+enforced_edges_for_first_vertex_weight
         
         spanning_tree_weight, neighbors = self.compute_kruskal_enforced_edges(computing_one_tree=True)
-        neighbor_nb = [len(neighbors[i]) for i in range(len(self))]
+        neighbor_nb = []
+        for i in range(len(self)):
+            neighbor_nb.append(len(neighbors[i]))
+            if neighbor_nb > 2:
+                separation_info = SeparationInfo(to_split_vertex=i, chosen_neighbors=neighbors)
         neighbor_nb[0] = 2  # bcs it's a one tree
         
-        return first_vertex_weight+spanning_tree_weight, neighbor_nb
+        return first_vertex_weight+spanning_tree_weight, neighbor_nb, separation_info
 
 
 

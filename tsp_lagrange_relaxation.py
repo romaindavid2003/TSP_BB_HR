@@ -1,5 +1,5 @@
 import numpy as np
-from tsp import Graph
+from tsp import Graph, SeparationInfo
 
 
 class TSPlagrangianRelaxation:
@@ -7,6 +7,7 @@ class TSPlagrangianRelaxation:
     def __init__(self, graph: Graph, upper_bound: float, initial_penalties: np.array | None=None):
         self.graph = graph
         self.best_lower_bound: float | None = None
+
         self.upper_bound: float = upper_bound
         
         self.penalties: np.array
@@ -15,6 +16,9 @@ class TSPlagrangianRelaxation:
             self.penalties = np.zeros(len(graph))
         else:
             self.penalties = initial_penalties
+            
+        self.best_lower_bound_penalties = initial_penalties
+        self.information_for_separation: SeparationInfo|None = None
     
     def find_best_lower_bound(self, accuracy_threshold: float=0.00001, max_iteration: int=1000) -> tuple[float, bool, float|None]:
         """
@@ -29,7 +33,7 @@ class TSPlagrangianRelaxation:
             
             penalized_graph = self.compute_penalized_graph()
 
-            weight_one_tree, node_nb_per_vertex = penalized_graph.compute_best_one_tree()
+            weight_one_tree, node_nb_per_vertex, separation_info = penalized_graph.compute_best_one_tree()
 
             subgradient = np.array(node_nb_per_vertex)-2
             lower_bound = weight_one_tree+2*np.sum(self.penalties)
@@ -37,8 +41,7 @@ class TSPlagrangianRelaxation:
             if np.sum(np.abs(subgradient)) < accuracy_threshold:  # best was a hamiltonian cycle
                 return lower_bound, True, lower_bound  # the bound is actually the feasible value
 
-            if self.best_lower_bound < lower_bound:
-                self.best_lower_bound = lower_bound
+            self.update_best_lower_bound(lower_bound, separation_info)
 
             self.update_penalties(subgradient, lower_bound)
         
@@ -52,13 +55,19 @@ class TSPlagrangianRelaxation:
         for i in range(len(penalized_graph)):
             penalized_graph.weights[i] += self.penalties[i]
             penalized_graph.weights[:, i] += self.penalties[i]  # keep weight matrix symmetricity
-        
+
         return penalized_graph
     
     def update_penalties(self, subgradient, lower_bound) -> None:
-        step_size = self.get_step_size(lower_bound)
+        step_size = self.get_step_size(subgradient, lower_bound)
         self.old_penalties = self.penalties
         self.penalties += step_size*subgradient
     
     def get_step_size(self, subgradient, lower_bound) -> float:
         return 0.5*(self.upper_bound-lower_bound)/np.linalg.norm(subgradient)
+    
+    def update_best_lower_bound(self, lower_bound: float, separation_info: SeparationInfo) -> None:
+        if self.best_lower_bound is None or self.best_lower_bound < lower_bound:
+            self.best_lower_bound = lower_bound
+            self.best_lower_bound_penalties = self.penalties
+            self.information_for_separation = separation_info

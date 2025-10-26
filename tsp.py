@@ -269,30 +269,6 @@ class Graph:
         
         return first_vertex_weight+spanning_tree_weight, neighbor_nb
 
-    def evaluate(self) -> tuple[bool, float, bool, float|None]:
-        """
-        exists_feasible, bound, found_feasible, feasible_value
-        """
-        # first compute a minimum spanning tree with enforced edges
-        # this may update the bestfeasible value
-        # but mainly check if we enforce a small cycle in the tree
-        # if this is the case, we can directly stop this
-        feasible_solution_exists, heuristic_value, is_best_value = self.compute_heuristic_for_constrained_graph()
-
-        if not feasible_solution_exists:
-            return False, 0, False, 0
-        
-        if is_best_value:
-            return True, heuristic_value, True, heuristic_value
-
-        hr = TSPlagrangianRelaxation(self)
-        bound, found_heuristic, heuristic_value2 = hr.find_uppper_bound()
-        
-        if found_heuristic:
-            if heuristic_value2 > heuristic_value:
-                heuristic_value = heuristic_value2
-        return (True, bound, True, heuristic_value)
-
 
 
 def test_basic_graph_functions():

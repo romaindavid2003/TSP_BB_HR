@@ -10,6 +10,7 @@ class TSPlagrangianRelaxation:
         self.upper_bound: float = upper_bound
         
         self.penalties: np.array
+        self.old_penalties: np.array = np.zeros(len(graph))
         if initial_penalties is None:
             self.penalties = np.zeros(len(graph))
         else:
@@ -21,8 +22,9 @@ class TSPlagrangianRelaxation:
         """
 
         for i in range(max_iteration):
-
-            if 0 < accuracy_threshold:
+            
+            # too few changes
+            if i > 2 and (np.sum(np.abs(self.penalties-self.old_penalties)) < accuracy_threshold):
                 break
             
             penalized_graph = self.compute_penalized_graph()
@@ -49,17 +51,13 @@ class TSPlagrangianRelaxation:
 
         for i in range(len(penalized_graph)):
             penalized_graph.weights[i] += self.penalties[i]
-            penalized_graph.weights[:, i] += self.penalties[i]  # keep weight ;arix symmetricity
+            penalized_graph.weights[:, i] += self.penalties[i]  # keep weight matrix symmetricity
         
         return penalized_graph
     
-    def compute_result(self, tree) -> tuple[float, np.array]:
-
-
-        return lower_bound, subgradient
-    
     def update_penalties(self, subgradient, lower_bound) -> None:
         step_size = self.get_step_size(lower_bound)
+        self.old_penalties = self.penalties
         self.penalties += step_size*subgradient
     
     def get_step_size(self, subgradient, lower_bound) -> float:

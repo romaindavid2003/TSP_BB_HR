@@ -2,9 +2,13 @@ from typing import Generator
 
 from tsp import Graph
 from branch_and_bound import BranchAndBound
+from tsp_lagrange_relaxation import TSPlagrangianRelaxation
 
 
 class BBTSP(BranchAndBound):
+
+    def __init__(self, problem_instance):
+        super().__init__(problem_instance)
 
     def is_minimisation_problem(self):
         return True
@@ -57,3 +61,28 @@ class BBTSP(BranchAndBound):
             graph = problem_sub_instance.copy()
             graph.ban(to_split_vertex, neighbor1)
             yield graph
+
+
+    def evaluate(self, problem_sub_instance: Graph, last_best_penalties) -> tuple[bool, float, bool, float|None]:
+        """
+        exists_feasible, bound, found_feasible, feasible_value
+        """
+        # first compute a minimum spanning tree with enforced edges
+        # this may update the bestfeasible value
+        # but mainly check if we enforce a small cycle in the tree
+        # if this is the case, we can directly stop this
+        feasible_solution_exists, heuristic_value, is_best_value = problem_sub_instance.compute_heuristic_for_constrained_graph()
+
+        if not feasible_solution_exists:
+            return False, 0, False, 0
+        
+        if is_best_value:
+            return True, heuristic_value, True, heuristic_value
+
+        lr = TSPlagrangianRelaxation(graph=self, upper_bound=self.best_solution_value, initial_penalties=last_best_penalties)
+        bound, found_heuristic, heuristic_value2 = lr.find_uppper_bound()
+        
+        if found_heuristic:
+            if heuristic_value2 > heuristic_value:
+                heuristic_value = heuristic_value2
+        return (True, bound, True, heuristic_value)

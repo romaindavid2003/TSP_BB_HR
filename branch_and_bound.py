@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any, Generator
 
 
 class ProblemInstance(ABC):
@@ -6,10 +7,13 @@ class ProblemInstance(ABC):
     def compute_heuristic(self) -> float:
         pass
 
-    @abstractmethod
-    def evaluate(self) -> tuple[bool, float, bool, float|None]:
-        """exists_feasible, bound, found_feasible, feasible_value"""
-        pass
+
+class EvaluationResult(BaseModel):
+    bound: float
+    exists_feasible: bool = True
+    found_feasible: bool = False
+    feasible_value: float|None = None
+    next_evaluation_parameters: Any = None
 
 
 class BranchAndBound(ABC):
@@ -39,29 +43,33 @@ class BranchAndBound(ABC):
         print(f"visited nodes: {self.visited_nodes}")
         return value
 
-    def explore_tree(self, problem_sub_instance: ProblemInstance) -> float:
+    def explore_tree(self, problem_sub_instance: ProblemInstance, evaluation_parameters=None) -> float:
 
         self.visited_nodes += 1
         if self.visited_nodes % self.compute_heuristic_frequency == 0:
             self.compute_heuristic(problem_sub_instance)
 
-        sub_instance_bound, stop_search = self.evaluate(problem_sub_instance=problem_sub_instance)
+        sub_instance_bound, stop_search, next_evaluation_parameters = self.evaluate(problem_sub_instance=problem_sub_instance, evaluation_parameters=evaluation_parameters)
 
         # no need to explore further, either we have found better already, or we have found the best of this subproblem
         if stop_search or self.is_better(self.best_solution_value, sub_instance_bound):
             return self.best_solution_value  # we wont find better than that
 
         for new_problem_sub_instance in self.separate(problem_sub_instance):
-            self.explore_tree(new_problem_sub_instance)
+            self.explore_tree(new_problem_sub_instance, next_evaluation_parameters)
 
         return self.best_solution_value  # the children will update this
 
     @abstractmethod
-    def separate(self, problem_sub_instance: ProblemInstance):
+    def compute_evaluation(self, problem_sub_instance: ProblemInstance, evaluation_parameters:Any=None) -> EvaluationResult:
+        pass
+
+    @abstractmethod
+    def separate(self, problem_sub_instance: ProblemInstance) -> Generator[ProblemInstance, None, None]:
         """can be implemented as an iterable to save space (yield)"""
         pass
 
-    def evaluate(self, problem_sub_instance: ProblemInstance) -> tuple[float, bool]:
+    def evaluate(self, problem_sub_instance: ProblemInstance, evaluation_parameters=None) -> tuple[float, bool, Any]:
         """
         uses the evaluate method of the problem_sub_instance class
         which should return:
@@ -71,16 +79,17 @@ class BranchAndBound(ABC):
         
         Note that the best_solution_value attribute gets updated here.
         
-        returns the bound, and whether the search should be stopped (if feasible is the bound)
+        returns the bound, whether the search should be stopped (if feasible is the bound), and the next evaluation_results
         """
-        exists_feasible, bound, found_feasible, feasible_value = problem_sub_instance.evaluate()
-        if not exists_feasible:  # stop search
-            return -1, True
-        if found_feasible:
-            self.update_best_solution_value(feasible_value)
-            if feasible_value == bound:  # stop search
-                return bound, True
-        return bound, False
+            
+        eval_result = self.compute_evaluation(problem_sub_instance, evaluation_parameters)
+        if not eval_result.exists_feasible:  # stop search
+            return -1, True, eval_result.next_evaluation_parameters
+        if eval_result.found_feasible:
+            self.update_best_solution_value(eval_result.feasible_value)
+            if eval_result.feasible_value == eval_result.bound:  # stop search
+                return eval_result.bound, True, eval_result.next_evaluation_parameters
+        return eval_result.bound, False, eval_result.next_evaluation_parameters
         
     
     def compute_heuristic(self, problem_sub_instance: ProblemInstance) -> float:

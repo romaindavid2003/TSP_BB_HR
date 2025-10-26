@@ -14,8 +14,8 @@ class ValuedKnapsack(Knapsack):
     def evaluate(self) -> tuple[bool, float, bool, float|None]:
         if len(self) == 0:
           return 0, True, 0
-        hr = KnapsackLagrangianRelaxation(self)
-        evaluation_result = hr.find_uppper_bound()
+        lr = KnapsackLagrangianRelaxation(self)
+        evaluation_result = lr.find_uppper_bound()
         return (True, self.added_value+evaluation_result[0], evaluation_result[1], self.added_value+(evaluation_result[2] or 0))
 
     def compute_heuristic(self) -> float:

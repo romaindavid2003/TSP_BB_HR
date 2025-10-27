@@ -21,7 +21,7 @@ class TSPLagrangianRelaxation:
     
     def find_lower_bound(self, accuracy_threshold: float=0.00001, max_iteration: int=1000) -> tuple[float, bool, float|None]:
         """
-        returns lower_bound, found_feasible, feasible value
+        returns lower_bound, found_hamiltonian_cycle, feasible value
         """
 
         for i in range(max_iteration):
@@ -39,8 +39,9 @@ class TSPLagrangianRelaxation:
 
             if np.sum(np.abs(subgradient)) < accuracy_threshold:  # best was a hamiltonian cycle
                 return lower_bound, True, lower_bound  # the bound is actually the feasible value
+            
             else:
-              assert separation_info is not None, f"sepa info is not None if one tree is not HC {subgradient}"
+              assert separation_info is not None, f"sepa info is not None if one tree is not HC {subgradient} {self.graph}"
 
             self.update_best_lower_bound(lower_bound, separation_info)
 
@@ -68,7 +69,6 @@ class TSPLagrangianRelaxation:
         return 0.5*(self.upper_bound-lower_bound)/np.linalg.norm(subgradient)
     
     def update_best_lower_bound(self, lower_bound: float, separation_info: SeparationInfo) -> None:
-        print(lower_bound, separation_info)
         if self.best_lower_bound is None or self.best_lower_bound < lower_bound:
             self.best_lower_bound = lower_bound
             self.best_lower_bound_penalties = self.penalties

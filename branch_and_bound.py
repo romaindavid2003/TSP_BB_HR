@@ -10,6 +10,7 @@ class ProblemInstance(ABC):
 
 
 class EvaluationResult(BaseModel):
+    # stop search encoded by found_feasible=True and bound==feasible_value
     bound: float
     exists_feasible: bool = True
     found_feasible: bool = False
@@ -46,15 +47,11 @@ class BranchAndBound(ABC):
 
     def explore_tree(self, problem_sub_instance: ProblemInstance, evaluation_parameters=None) -> float:
 
-        print(self.visited_nodes, self.best_solution_value)
-        print(problem_sub_instance)
-
         self.visited_nodes += 1
         if self.visited_nodes % self.compute_heuristic_frequency == 0:
             self.compute_heuristic(problem_sub_instance)
 
         sub_instance_bound, stop_search, next_evaluation_parameters = self.evaluate(problem_sub_instance=problem_sub_instance, evaluation_parameters=evaluation_parameters)
-        print(sub_instance_bound, stop_search)
         # no need to explore further, either we have found better already, or we have found the best of this subproblem
         if stop_search or self.is_better(self.best_solution_value, sub_instance_bound):
             return self.best_solution_value  # we wont find better than that
@@ -87,7 +84,6 @@ class BranchAndBound(ABC):
         """
             
         eval_result = self.compute_evaluation(problem_sub_instance, evaluation_parameters)
-        print(eval_result.exists_feasible)
         if not eval_result.exists_feasible:  # stop search
             return -1, True, eval_result.next_evaluation_parameters
         if eval_result.found_feasible:

@@ -108,16 +108,17 @@ class Graph(ProblemInstance):
         return self.separation_information
       
     def set_separation_information(self, separation_information: SeparationInfo) -> None:
+      assert separation_information is not None
       self.separation_information = separation_information
     
     def __str__(self) -> str:
-      return str(self.weights)+"\n"+str(self.banned_edges)+"\n"+str(self.enforced_edges)
+      return "GRAPH ###\n"+str(self.weights)+"\n"+str(self.banned_edges)+"\n"+str(self.enforced_edges)+"\nEND ###\n"
 
     def copy(self) -> "Graph":
         vertex_nb = self.vertex_nb
-        weights = self.weights
-        enforced_edges = self.enforced_edges
-        banned_edges = self.banned_edges
+        weights = self.weights.copy()
+        enforced_edges = self.enforced_edges.copy()
+        banned_edges = self.banned_edges.copy()
 
         return Graph(vertex_nb=vertex_nb, weights=weights, banned_edges=banned_edges, enforced_edges=enforced_edges)
     
@@ -158,6 +159,12 @@ class Graph(ProblemInstance):
         return np.where(self.enforced_edges[vertex]==1)[0]  # np returns a tuple, no idea why
     
     def enforce(self, vertex1: int, vertex2: int) -> None:
+
+        if vertex1 < vertex2:
+          assert self.banned_edges[vertex1][vertex2] == 0, f"cant enforce if banned: {vertex1} {vertex2} \n{self.enforced_edges} \n{self.banned_edges}"
+        else:
+          assert self.banned_edges[vertex2][vertex1] == 0, f"cant enforce if banned: {vertex1} {vertex2} \n{self.enforced_edges} \n{self.banned_edges}"
+        
         self.enforced_edges[vertex1][vertex2] = 1
         self.enforced_edges[vertex2][vertex1] = 1
 
@@ -176,7 +183,10 @@ class Graph(ProblemInstance):
             self.banned_edges[new_banned_neighbors, vertex2] = 1
     
     def ban(self, vertex1: int, vertex2: int) -> None:
+        assert self.enforced_edges[vertex1][vertex2] == 0, f"cant ban if enforced: {vertex1} {vertex2} \n{self.enforced_edges} \n{self.banned_edges}"
         self.banned_edges[vertex1][vertex2] = 1
+         
+        assert self.enforced_edges[vertex2][vertex1] == 0, f"cant ban if enforced: {vertex1} {vertex2} \n{self.enforced_edges} \n{self.banned_edges}"
         self.banned_edges[vertex2][vertex1] = 1
 
     def __len__(self) -> int:
@@ -208,7 +218,6 @@ class Graph(ProblemInstance):
     def compute_heuristic_for_constrained_graph(self) -> tuple[bool, float, bool]:
         """ returns if a feasible solution exists, if so the heuristic value, and if it is the best value """
         best_spanning_tree = self.compute_kruskal_enforced_edges()
-        print(best_spanning_tree, 98)
         if isinstance(best_spanning_tree, bool): # a cycle is enforced
             if best_spanning_tree:
                 return True, self.weights*self.banned_edges*self.enforced_edges, True
@@ -260,9 +269,10 @@ class Graph(ProblemInstance):
                 neighbors_in_tree[vertex1].append(vertex2)
                 neighbors_in_tree[vertex2].append(vertex1)
 
-                if len(kept_edges) == len(self):  # the spanning tree is complete
+                if len(kept_edges) == len(self)-1:  # the spanning tree is complete
                     break
-                elif computing_one_tree and len(kept_edges) == len(self)-1:  # the spanning one tree is complete
+                elif computing_one_tree and len(kept_edges) == len(self)-2:  # the spanning one tree is complete
+                    print(kept_edges, neighbors_in_tree)
                     break
         
         if computing_one_tree:
@@ -296,7 +306,7 @@ class Graph(ProblemInstance):
 
         # 
         enforced_edges_for_first_vertex = np.where(self.enforced_edges[0] == 1)[0]
-        enforced_edges_for_first_vertex_nb = np.sum(enforced_edges_for_first_vertex)
+        enforced_edges_for_first_vertex_nb = len(enforced_edges_for_first_vertex)
         enforced_edges_for_first_vertex_weight = np.sum(self.weights[0][enforced_edges_for_first_vertex])
         
         other_edge_needed_nb = 2-enforced_edges_for_first_vertex_nb
@@ -305,7 +315,7 @@ class Graph(ProblemInstance):
         other_edges_weights_for_first_vertex = self.weights[0][other_edges_first_vertex]  # keep only weights of other dges
 
         lightest_indices = np.argsort(other_edges_weights_for_first_vertex)[:other_edge_needed_nb]
-        vertex_indices = np.where(other_edges_first_vertex)[0][lightest_indices]
+        other_vertex_indices_for_first_vertex = np.where(other_edges_first_vertex)[0][lightest_indices]
 
         if other_edge_needed_nb == 0:
             first_vertex_weight = enforced_edges_for_first_vertex_weight
@@ -317,7 +327,7 @@ class Graph(ProblemInstance):
         c = 0
         for i in range(len(self)):
             # add first vertex as neighbor
-            if i in enforced_edges_for_first_vertex or i in vertex_indices:
+            if i in enforced_edges_for_first_vertex or i in other_vertex_indices_for_first_vertex:
               neighbors[i].append(0)
               c += 1
             neighbor_nb.append(len(neighbors[i]))
@@ -325,7 +335,7 @@ class Graph(ProblemInstance):
             if neighbor_nb[-1] > 2:
                 separation_info = SeparationInfo(to_split_vertex=i, chosen_neighbors=neighbors[i])
 
-        assert c == 2
+        assert c == 2, f"{enforced_edges_for_first_vertex} {other_vertex_indices_for_first_vertex} {other_edge_needed_nb} {enforced_edges_for_first_vertex_nb} {enforced_edges_for_first_vertex} {self}"
         # add edges of first vertex
         neighbor_nb[0] = 2
         

@@ -12,7 +12,7 @@ class TSPLagrangianRelaxation:
         self.penalties: np.array
         self.old_penalties: np.array = np.zeros(len(graph))
         if initial_penalties is None:
-            self.penalties = np.zeros(len(graph)).astype(np.float16)
+            self.penalties = np.zeros(len(graph)).astype(np.float32)
         else:
             self.penalties = initial_penalties
             
@@ -55,23 +55,25 @@ class TSPLagrangianRelaxation:
         penalized_graph = self.graph.copy()
 
         for i in range(len(penalized_graph)):
-            penalized_graph.weights[i] += self.penalties[i]
-            penalized_graph.weights[:, i] += self.penalties[i]  # keep weight matrix symmetricity
+            penalized_graph.weights[i] -= self.penalties[i]
+            penalized_graph.weights[:, i] -= self.penalties[i]  # keep weight matrix symmetricity
 
         return penalized_graph
-    
+
     def update_penalties(self, subgradient, lower_bound) -> None:
         step_size = self.get_step_size(subgradient, lower_bound)
-        self.old_penalties = self.penalties#.copy()
+        self.old_penalties = self.penalties.copy()
         self.penalties += step_size*subgradient
     
     def get_step_size(self, subgradient, lower_bound) -> float:
-        return 0.5*(self.upper_bound-lower_bound)/np.linalg.norm(subgradient)
+        gap = (self.upper_bound-lower_bound)
+        assert gap >= 0
+        return 0.5*gap/(np.dot(subgradient, subgradient))
     
     def update_best_lower_bound(self, lower_bound: float, separation_info: SeparationInfo) -> None:
         if self.best_lower_bound is None or self.best_lower_bound < lower_bound:
             self.best_lower_bound = lower_bound
-            self.best_lower_bound_penalties = self.penalties
+            self.best_lower_bound_penalties = self.penalties.copy()
             self.separation_information = separation_info
 
 

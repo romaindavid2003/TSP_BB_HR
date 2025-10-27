@@ -93,7 +93,7 @@ class BranchAndBound(ABC):
         return eval_result.bound, False, eval_result.next_evaluation_parameters
         
     
-    def compute_heuristic(self, problem_sub_instance: ProblemInstance) -> float:
+    def compute_heuristic(self, problem_sub_instance: ProblemInstance) -> None:
         self.update_best_solution_value(problem_sub_instance.compute_heuristic())
         
     

@@ -84,7 +84,7 @@ class Graph(ProblemInstance):
     """
     def __init__(self, vertex_nb: int, weights: np.ndarray, enforced_edges: np.ndarray|None=None, banned_edges:np.ndarray|None=None):
         self.vertex_nb: int = vertex_nb
-        self.weights: np.ndarray = weights.astype(np.float16)  # weight matrix (symmetric)
+        self.weights: np.ndarray = weights.astype(np.float32)  # weight matrix (symmetric)
         assert self.vertex_nb == len(self.weights)
 
         self.enforced_edges: np.ndarray
@@ -220,7 +220,9 @@ class Graph(ProblemInstance):
         best_spanning_tree = self.compute_kruskal_enforced_edges()
         if isinstance(best_spanning_tree, bool): # a cycle is enforced
             if best_spanning_tree:
-                return True, self.weights*self.banned_edges*self.enforced_edges, True
+                enforced_mask = (self.enforced_edges == 1) & (self.banned_edges == 0)
+                value = np.sum(self.weights * enforced_mask)
+                return True, value, True
             return False, 0, False
 
         # now find the real length of this lagrangian cycle by skipping the doubled edges
@@ -279,7 +281,7 @@ class Graph(ProblemInstance):
             return spanning_tree_weight, neighbors_in_tree
         
         # we know have a list of edges that represent a tree in a graph
-        # we need to root it to get a tree
+        # we need to root it to get a tree, not at 0 when we compute one trees
         visited_vertices = set([1])
         def construct_tree_from_neighbors(root: int) -> Tree:
             neighbors = []

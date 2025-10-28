@@ -75,8 +75,8 @@ class BranchAndBound(ABC):
         uses the evaluate method of the problem_sub_instance class
         which should return:
         -the bound value
-        -whether it found a feasible solution
-        -the best feasible solution value
+        -whether the search should be stopped here
+        -the next_evaluation_parameters for the next nodes
         
         Note that the best_solution_value attribute gets updated here.
         
@@ -85,11 +85,11 @@ class BranchAndBound(ABC):
             
         eval_result = self.compute_evaluation(problem_sub_instance, evaluation_parameters)
         if not eval_result.exists_feasible:  # stop search
-            return -1, True, eval_result.next_evaluation_parameters
+            return -1, True, None
         if eval_result.found_feasible:
             self.update_best_solution_value(eval_result.feasible_value)
             if eval_result.feasible_value == eval_result.bound:  # stop search
-                return eval_result.bound, True, eval_result.next_evaluation_parameters
+                return eval_result.bound, True, None
         return eval_result.bound, False, eval_result.next_evaluation_parameters
         
     

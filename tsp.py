@@ -84,7 +84,7 @@ class Graph(ProblemInstance):
     """
     def __init__(self, vertex_nb: int, weights: np.ndarray, enforced_edges: np.ndarray|None=None, banned_edges:np.ndarray|None=None):
         self.vertex_nb: int = vertex_nb
-        self.weights: np.ndarray = weights.astype(np.float32)  # weight matrix (symmetric)
+        self.weights: np.ndarray = weights.astype(np.float64)  # weight matrix (symmetric)
         assert self.vertex_nb == len(self.weights)
 
         self.enforced_edges: np.ndarray
@@ -224,7 +224,6 @@ class Graph(ProblemInstance):
                 value = np.sum(self.weights * enforced_mask)
                 return True, value, True
             return False, 0, False
-
         # now find the real length of this lagrangian cycle by skipping the doubled edges
         return True, get_tree_hc_length(best_spanning_tree, self.weights), False
     
@@ -274,8 +273,8 @@ class Graph(ProblemInstance):
                 if len(kept_edges) == len(self)-1:  # the spanning tree is complete
                     break
                 elif computing_one_tree and len(kept_edges) == len(self)-2:  # the spanning one tree is complete
-                    print(kept_edges, neighbors_in_tree)
                     break
+        
         
         if computing_one_tree:
             return spanning_tree_weight, neighbors_in_tree

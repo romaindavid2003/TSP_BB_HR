@@ -1,3 +1,4 @@
+import time
 from typing import Generator
 import numpy as np
 
@@ -89,25 +90,42 @@ class BBTSP(BranchAndBound):
 
 
 def test_tsp_branch_and_bound():
-    def test_tsp_bb(graph: Graph):
-        tsp_value = graph.solve_dynamic_programming()
+    def test_tsp_bb_only(graph: Graph):
         b_b = BBTSP(graph)
+        start = time.time()
         value = b_b.find_best_value()
+        time2 = round(time.time() - start, 2)
         #assert value == tsp_value, f"{tsp_value} (real) is not {value} (found)"
-        print("graph size: ", len(graph), "found value: ", value, "real value: ", tsp_value)
+        print(f"graph size: {len(graph)} BB found value: {value} time {time2}, real value: {value} time {time2}")
+
+    def test_tsp_bb(graph: Graph):
+        start = time.time()
+        tsp_value = graph.solve_dynamic_programming()
+        time1 = round(time.time() - start, 2)
+        b_b = BBTSP(graph)
+        start = time.time()
+        value = b_b.find_best_value()
+        time2 = round(time.time() - start, 2)
+        #assert value == tsp_value, f"{tsp_value} (real) is not {value} (found)"
+        print(f"graph size: {len(graph)} BB found value: {value} time {time2}, real value: {tsp_value} time {time1}")
 
     
-    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 3], [2, 3], [3, 3]])))
-    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 3], [2, 3]])))
     test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 1]])))
-    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 2]])))
-    test_tsp_bb(Graph.from_points(np.array([[1, 0], [0, 1], [0, 0], [1, 1]])))
     test_tsp_bb(Graph(vertex_nb=3, weights=np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])))
     test_tsp_bb(Graph(vertex_nb=4, weights=np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])))
+    test_tsp_bb(Graph.from_points(np.array([[1, 0], [0, 1], [0, 0], [1, 1]])))
+    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 2]])))
+    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 3], [2, 3], [3, 3]])))
+    test_tsp_bb(Graph.from_points(np.array([[0, 0], [1, 1], [2, 0], [0, 3], [2, 3]])))
 
+    test_tsp_bb(Graph.random_triangular_equality_abiding_graph(16, 10))
+    test_tsp_bb(Graph.random_triangular_equality_abiding_graph(17, 10))
+    test_tsp_bb(Graph.random_triangular_equality_abiding_graph(18, 10))
+    test_tsp_bb(Graph.random_triangular_equality_abiding_graph(19, 10))
     for _ in range(5):
         test_tsp_bb(Graph.random_triangular_equality_abiding_graph(15, 10))
-    return
+    test_tsp_bb(Graph.random_triangular_equality_abiding_graph(20, 10))
+    test_tsp_bb(Graph.random_triangular_equality_abiding_graph(25, 10))
 
     print("all tests success")
 

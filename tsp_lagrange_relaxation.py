@@ -8,11 +8,12 @@ class TSPLagrangianRelaxation:
         self.best_lower_bound: float | None = None
 
         self.upper_bound: float = upper_bound
+        assert not np.isnan(self.upper_bound), f"{self.upper_bound}"
         
         self.penalties: np.array
         self.old_penalties: np.array = np.zeros(len(graph))
         if initial_penalties is None:
-            self.penalties = np.zeros(len(graph)).astype(np.float32)
+            self.penalties = np.zeros(len(graph)).astype(np.float64)
         else:
             self.penalties = initial_penalties
             
@@ -35,7 +36,11 @@ class TSPLagrangianRelaxation:
             weight_one_tree, node_nb_per_vertex, separation_info = penalized_graph.compute_best_one_tree()
 
             subgradient = np.array(node_nb_per_vertex)-2
-            lower_bound = weight_one_tree+2*np.sum(self.penalties)
+            lower_bound = weight_one_tree  # bcs actually the +2*np.sum(self.penalties) term is null
+            assert abs(2*np.sum(self.penalties)) < accuracy_threshold, f"{np.sum(self.penalties)} {self.penalties}"
+
+            if self.upper_bound < lower_bound:  # we already found an instance better than this bound
+              return lower_bound, True, lower_bound  # this will trigger stop_search bcs found_feasible_value = bound
 
             if np.sum(np.abs(subgradient)) < accuracy_threshold:  # best was a hamiltonian cycle
                 return lower_bound, True, lower_bound  # the bound is actually the feasible value
@@ -55,8 +60,8 @@ class TSPLagrangianRelaxation:
         penalized_graph = self.graph.copy()
 
         for i in range(len(penalized_graph)):
-            penalized_graph.weights[i] -= self.penalties[i]
-            penalized_graph.weights[:, i] -= self.penalties[i]  # keep weight matrix symmetricity
+            penalized_graph.weights[i] += self.penalties[i]
+            penalized_graph.weights[:, i] += self.penalties[i]  # keep weight matrix symmetricity
 
         return penalized_graph
 
@@ -65,9 +70,8 @@ class TSPLagrangianRelaxation:
         self.old_penalties = self.penalties.copy()
         self.penalties += step_size*subgradient
     
-    def get_step_size(self, subgradient, lower_bound) -> float:
+    def get_step_size(self, subgradient: np.ndarray, lower_bound: float) -> float:
         gap = (self.upper_bound-lower_bound)
-        assert gap >= 0
         return 0.5*gap/(np.dot(subgradient, subgradient))
     
     def update_best_lower_bound(self, lower_bound: float, separation_info: SeparationInfo) -> None:

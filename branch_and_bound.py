@@ -59,6 +59,10 @@ class BranchAndBound(ABC):
         for new_problem_sub_instance in self.separate(problem_sub_instance):
             self.explore_tree(new_problem_sub_instance, next_evaluation_parameters)
 
+            # sub node might have found better solution than what we had before
+            if self.is_better(self.best_solution_value, sub_instance_bound):
+                return self.best_solution_value  # we wont find better than that
+
         return self.best_solution_value  # the children will update this
 
     @abstractmethod

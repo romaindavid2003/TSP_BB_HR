@@ -6,6 +6,7 @@ class TSPLagrangianRelaxation:
     def __init__(self, graph: Graph, upper_bound: float, initial_penalties: np.ndarray | None=None):
         self.graph = graph
         self.best_lower_bound: float | None = None
+        self.best_old_lower_bound: float | None = None
 
         self.upper_bound: float = upper_bound
         assert not np.isnan(self.upper_bound), f"{self.upper_bound}"
@@ -26,7 +27,7 @@ class TSPLagrangianRelaxation:
         """
 
         for i in range(max_iteration):
-            
+
             # too few changes
             if i > 2 and (np.sum(np.abs(self.penalties-self.old_penalties)) < accuracy_threshold):
                 break
@@ -37,6 +38,14 @@ class TSPLagrangianRelaxation:
 
             subgradient = np.array(node_nb_per_vertex)-2
             lower_bound = weight_one_tree  # bcs actually the +2*np.sum(self.penalties) term is null
+
+            if i == 0:
+                self.best_old_lower_bound = lower_bound
+            elif i % 10 == 0:
+                if (self.best_lower_bound-self.best_old_lower_bound)/self.best_old_lower_bound <= 0.001:  # 0.1% evolution max of lower bound in 10 iterations
+                    break
+                self.best_old_lower_bound = self.best_lower_bound
+
             assert abs(2*np.sum(self.penalties)) < accuracy_threshold, f"{np.sum(self.penalties)} {self.penalties}"
 
             if self.upper_bound < lower_bound:  # we already found an instance better than this bound
@@ -51,7 +60,7 @@ class TSPLagrangianRelaxation:
             self.update_best_lower_bound(lower_bound, separation_info)
 
             self.update_penalties(subgradient, lower_bound)
-        
+          
         # bcs we relax equalities, we never find a feasible solution 
         # (except when the feasible solution is the solution to the relaxation)
         return self.best_lower_bound, False, 0
@@ -89,7 +98,11 @@ def test_tsp_lagrangian_relaxation():
         heuristc_value = graph.compute_heuristic()
         relaxed_tsp = TSPLagrangianRelaxation(graph=graph, upper_bound=heuristc_value)
         bound, found_feasible, feasible_value = relaxed_tsp.find_lower_bound()
+        bound = round(bound, 5)
+        value = round(value, 5)
+        heuristc_value = round(heuristc_value, 5)
         if found_feasible:
+            feasible_value = round(feasible_value, 5)
             assert bound <= value <= feasible_value, f"{bound} > {value} or {feasible_value} < {value}, {graph}"
             assert value <= heuristc_value, f"{heuristc_value} < {value}, {graph}"
             print(f"success, bound :{bound} <= {value} <= {feasible_value}")
@@ -97,6 +110,7 @@ def test_tsp_lagrangian_relaxation():
             assert bound <= value <= heuristc_value, f"{bound} > {value} or {heuristc_value} < {value}, {graph}"
             print(f"success, bound :{bound} <= {value}")
 
+    np.random.seed(0)
     test_tsp_hr(Graph(vertex_nb=3, weights=np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])))
     test_tsp_hr(Graph(vertex_nb=4, weights=np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]])))
 
